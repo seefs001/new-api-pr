@@ -683,13 +683,15 @@ export const getDeploymentsColumns = ({
                 position='bottomRight'
                 render={allActions}
               >
-                <Button
-                  size='small'
-                  theme='light'
-                  type='tertiary'
-                  icon={<IconMore />}
-                  className='px-1'
-                />
+                <span className='inline-flex'>
+                  <Button
+                    size='small'
+                    theme='light'
+                    type='tertiary'
+                    icon={<IconMore />}
+                    className='px-1'
+                  />
+                </span>
               </Dropdown>
             )}
           </div>

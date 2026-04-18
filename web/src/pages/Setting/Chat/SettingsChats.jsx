@@ -441,9 +441,11 @@ export default function SettingsChats(props) {
                     },
                   ]}
                 >
-                  <Button icon={<IconBolt />}>
-                    {t('填入模板')}
-                  </Button>
+                  <span className='inline-flex'>
+                    <Button icon={<IconBolt />}>
+                      {t('填入模板')}
+                    </Button>
+                  </span>
                 </Dropdown>
                 <Button
                   type='primary'

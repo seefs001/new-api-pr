@@ -840,11 +840,13 @@ export const getChannelsColumns = ({
                       },
                     ]}
                   >
-                    <Button
-                      type='tertiary'
-                      size='small'
-                      icon={<IconTreeTriangleDown />}
-                    />
+                    <span className='inline-flex'>
+                      <Button
+                        type='tertiary'
+                        size='small'
+                        icon={<IconTreeTriangleDown />}
+                      />
+                    </span>
                   </Dropdown>
                 </SplitButtonGroup>
               ) : (
@@ -865,7 +867,9 @@ export const getChannelsColumns = ({
                 position='bottomRight'
                 menu={moreMenuItems}
               >
-                <Button icon={<IconMore />} type='tertiary' size='small' />
+                <span className='inline-flex'>
+                  <Button icon={<IconMore />} type='tertiary' size='small' />
+                </span>
               </Dropdown>
             </Space>
           );

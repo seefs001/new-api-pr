@@ -204,13 +204,15 @@ const ConfigManager = ({
           showTick
           menu={dropdownItems}
         >
-          <Button
-            icon={<Settings2 size={14} />}
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            className='!rounded-lg !text-gray-600 hover:!text-blue-600 hover:!bg-blue-50'
-          />
+          <span className='inline-flex'>
+            <Button
+              icon={<Settings2 size={14} />}
+              theme='borderless'
+              type='tertiary'
+              size='small'
+              className='!rounded-lg !text-gray-600 hover:!text-blue-600 hover:!bg-blue-50'
+            />
+          </span>
         </Dropdown>
 
         <input

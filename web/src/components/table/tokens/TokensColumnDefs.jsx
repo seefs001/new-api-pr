@@ -174,17 +174,19 @@ const renderTokenKey = (
                 },
               ]}
             >
-              <Button
-                theme='borderless'
-                size='small'
-                type='tertiary'
-                icon={<IconCopy />}
-                loading={loading}
-                aria-label='copy token key'
-                onClick={async (e) => {
-                  e.stopPropagation();
-                }}
-              />
+              <span className='inline-flex'>
+                <Button
+                  theme='borderless'
+                  size='small'
+                  type='tertiary'
+                  icon={<IconCopy />}
+                  loading={loading}
+                  aria-label='copy token key'
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                  }}
+                />
+              </span>
             </Dropdown>
           </div>
         }
@@ -310,9 +312,11 @@ const renderQuotaUsage = (text, record, t) => {
     );
     return (
       <Popover content={popoverContent} position='top'>
-        <Tag color='white' shape='circle'>
-          {t('无限额度')}
-        </Tag>
+        <span className='inline-flex'>
+          <Tag color='white' shape='circle'>
+            {t('无限额度')}
+          </Tag>
+        </span>
       </Popover>
     );
   }
@@ -332,18 +336,20 @@ const renderQuotaUsage = (text, record, t) => {
   );
   return (
     <Popover content={popoverContent} position='top'>
-      <Tag color='white' shape='circle'>
-        <div className='flex flex-col items-end'>
-          <span className='text-xs leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
-          <Progress
-            percent={percent}
-            stroke={getProgressColor(percent)}
-            aria-label='quota usage'
-            format={() => `${percent.toFixed(0)}%`}
-            style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
-          />
-        </div>
-      </Tag>
+      <span className='inline-flex'>
+        <Tag color='white' shape='circle'>
+          <div className='flex flex-col items-end'>
+            <span className='text-xs leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
+            <Progress
+              percent={percent}
+              stroke={getProgressColor(percent)}
+              aria-label='quota usage'
+              format={() => `${percent.toFixed(0)}%`}
+              style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
+            />
+          </div>
+        </Tag>
+      </span>
     </Popover>
   );
 };
@@ -402,11 +408,13 @@ const renderOperations = (
           {t('聊天')}
         </Button>
         <Dropdown trigger='click' position='bottomRight' menu={chatsArray}>
-          <Button
-            type='tertiary'
-            icon={<IconTreeTriangleDown />}
-            size='small'
-          ></Button>
+          <span className='inline-flex'>
+            <Button
+              type='tertiary'
+              icon={<IconTreeTriangleDown />}
+              size='small'
+            ></Button>
+          </span>
         </Dropdown>
       </SplitButtonGroup>
 

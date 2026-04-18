@@ -213,14 +213,16 @@ const ChannelsActions = ({
               </Dropdown.Menu>
             }
           >
-            <Button
-              size='small'
-              theme='light'
-              type='tertiary'
-              className='w-full md:w-auto'
-            >
-              {t('批量操作')}
-            </Button>
+            <span className='inline-flex w-full md:w-auto'>
+              <Button
+                size='small'
+                theme='light'
+                type='tertiary'
+                className='w-full md:w-auto'
+              >
+                {t('批量操作')}
+              </Button>
+            </span>
           </Dropdown>
 
           <CompactModeToggle

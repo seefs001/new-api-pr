@@ -59,13 +59,15 @@ const NewYearButton = ({ isNewYear }) => {
         </Dropdown.Menu>
       }
     >
-      <Button
-        theme='borderless'
-        type='tertiary'
-        icon={<span className='text-xl'>🎉</span>}
-        aria-label='New Year'
-        className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700 rounded-full'
-      />
+      <span className='inline-flex'>
+        <Button
+          theme='borderless'
+          type='tertiary'
+          icon={<span className='text-xl'>🎉</span>}
+          aria-label='New Year'
+          className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700 rounded-full'
+        />
+      </span>
     </Dropdown>
   );
 };

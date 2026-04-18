@@ -157,14 +157,16 @@ const ModelsTabs = ({
                   }
                   onClickOutSide={(e) => e.stopPropagation()}
                 >
-                  <Button
-                    size='small'
-                    type='tertiary'
-                    theme='outline'
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {t('操作')}
-                  </Button>
+                  <span className='inline-flex'>
+                    <Button
+                      size='small'
+                      type='tertiary'
+                      theme='outline'
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {t('操作')}
+                    </Button>
+                  </span>
                 </Dropdown>
               </span>
             }

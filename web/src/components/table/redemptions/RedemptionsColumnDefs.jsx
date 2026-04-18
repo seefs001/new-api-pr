@@ -184,9 +184,11 @@ export const getRedemptionsColumns = ({
               style={{ padding: 20 }}
               position='top'
             >
-              <Button type='tertiary' size='small'>
-                {t('查看')}
-              </Button>
+              <span className='inline-flex'>
+                <Button type='tertiary' size='small'>
+                  {t('查看')}
+                </Button>
+              </span>
             </Popover>
             <Button
               size='small'
@@ -212,7 +214,9 @@ export const getRedemptionsColumns = ({
               position='bottomRight'
               menu={moreMenuItems}
             >
-              <Button type='tertiary' size='small' icon={<IconMore />} />
+              <span className='inline-flex'>
+                <Button type='tertiary' size='small' icon={<IconMore />} />
+              </span>
             </Dropdown>
           </Space>
         );

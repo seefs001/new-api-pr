@@ -2310,9 +2310,11 @@ const EditChannelModal = (props) => {
                             { node: 'item', name: t('清空'), onClick: clearParamOverride },
                           ]}
                         >
-                          <Button size='small' type='tertiary'>
-                            {t('更多')} <IconChevronDown size={12} />
-                          </Button>
+                          <span className='inline-flex'>
+                            <Button size='small' type='tertiary'>
+                              {t('更多')} <IconChevronDown size={12} />
+                            </Button>
+                          </span>
                         </Dropdown>
                       </Space>
                     </div>
@@ -3534,9 +3536,11 @@ const EditChannelModal = (props) => {
                               ] : []),
                             ]}
                           >
-                            <Button size='small' type='tertiary'>
-                              {t('更多')} <IconChevronDown size={12} />
-                            </Button>
+                            <span className='inline-flex'>
+                              <Button size='small' type='tertiary'>
+                                {t('更多')} <IconChevronDown size={12} />
+                              </Button>
+                            </span>
                           </Dropdown>
                         </Space>
                       }
