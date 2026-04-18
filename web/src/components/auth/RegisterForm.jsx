@@ -413,7 +413,7 @@ const RegisterForm = () => {
                 {status.wechat_login && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='auth-provider-button'
                     type='tertiary'
                     icon={
                       <Icon svg={<WeChatIcon />} style={{ color: '#07C160' }} />
@@ -428,7 +428,7 @@ const RegisterForm = () => {
                 {status.github_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='auth-provider-button'
                     type='tertiary'
                     icon={<IconGithubLogo size='large' />}
                     onClick={handleGitHubClick}
@@ -442,7 +442,7 @@ const RegisterForm = () => {
                 {status.discord_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='auth-provider-button'
                     type='tertiary'
                     icon={
                       <SiDiscord
@@ -463,7 +463,7 @@ const RegisterForm = () => {
                 {status.oidc_enabled && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='auth-provider-button'
                     type='tertiary'
                     icon={<OIDCIcon style={{ color: '#1877F2' }} />}
                     onClick={handleOIDCClick}
@@ -476,7 +476,7 @@ const RegisterForm = () => {
                 {status.linuxdo_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='auth-provider-button'
                     type='tertiary'
                     icon={
                       <LinuxDoIcon
@@ -499,7 +499,7 @@ const RegisterForm = () => {
                     <Button
                       key={provider.slug}
                       theme='outline'
-                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      className='auth-provider-button'
                       type='tertiary'
                       icon={getOAuthProviderIcon(provider.icon || '', 20)}
                       onClick={() => handleCustomOAuthClick(provider)}
@@ -527,7 +527,7 @@ const RegisterForm = () => {
                 <Button
                   theme='solid'
                   type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                  className='auth-primary-action'
                   icon={<IconMail size='large' />}
                   onClick={handleEmailRegisterClick}
                   loading={emailRegisterLoading}
@@ -539,10 +539,7 @@ const RegisterForm = () => {
               <div className='mt-6 text-center text-sm'>
                 <Text>
                   {t('已有账户？')}{' '}
-                  <Link
-                    to='/login'
-                    className='text-blue-600 hover:text-blue-800 font-medium'
-                  >
+                  <Link to='/login' className='auth-inline-link'>
                     {t('登录')}
                   </Link>
                 </Text>
@@ -651,7 +648,7 @@ const RegisterForm = () => {
                               href='/user-agreement'
                               target='_blank'
                               rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
+                              className='auth-inline-link mx-1'
                             >
                               {t('用户协议')}
                             </a>
@@ -664,7 +661,7 @@ const RegisterForm = () => {
                               href='/privacy-policy'
                               target='_blank'
                               rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
+                              className='auth-inline-link mx-1'
                             >
                               {t('隐私政策')}
                             </a>
@@ -678,7 +675,7 @@ const RegisterForm = () => {
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
-                    className='w-full !rounded-full'
+                    className='auth-primary-action'
                     type='primary'
                     htmlType='submit'
                     onClick={handleSubmit}
@@ -702,7 +699,7 @@ const RegisterForm = () => {
                     <Button
                       theme='outline'
                       type='tertiary'
-                      className='w-full !rounded-full'
+                      className='auth-secondary-action'
                       onClick={handleOtherRegisterOptionsClick}
                       loading={otherRegisterOptionsLoading}
                     >
@@ -715,10 +712,7 @@ const RegisterForm = () => {
               <div className='mt-6 text-center text-sm'>
                 <Text>
                   {t('已有账户？')}{' '}
-                  <Link
-                    to='/login'
-                    className='text-blue-600 hover:text-blue-800 font-medium'
-                  >
+                  <Link to='/login' className='auth-inline-link'>
                     {t('登录')}
                   </Link>
                 </Text>
@@ -781,8 +775,7 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
+        {showEmailRegister || !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

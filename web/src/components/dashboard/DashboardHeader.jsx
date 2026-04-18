@@ -29,8 +29,6 @@ const DashboardHeader = ({
   loading,
   t,
 }) => {
-  const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
-
   return (
     <div className='flex items-center justify-between mb-4'>
       <h2
@@ -44,14 +42,14 @@ const DashboardHeader = ({
           type='tertiary'
           icon={<Search size={16} />}
           onClick={showSearchModal}
-          className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
+          className='dashboard-toolbar-button'
         />
         <Button
           type='tertiary'
           icon={<RefreshCw size={16} />}
           onClick={refresh}
           loading={loading}
-          className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
+          className='dashboard-toolbar-button'
         />
       </div>
     </div>

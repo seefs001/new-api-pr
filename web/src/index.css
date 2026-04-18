@@ -70,21 +70,21 @@ code {
 }
 
 /* ==================== 导航和侧边栏样式 ==================== */
-.semi-navigation-item {
+.sidebar-nav .semi-navigation-item {
   margin-bottom: 4px !important;
   padding: 4px 12px !important;
 }
 
-.semi-navigation-sub-title {
+.sidebar-nav .semi-navigation-sub-title {
   padding: 0 !important;
 }
 
-.semi-navigation-item-icon {
+.sidebar-nav .semi-navigation-item-icon {
   justify-items: center;
   align-items: center;
 }
 
-.semi-navigation-item-icon-info {
+.sidebar-nav .semi-navigation-item-icon-info {
   margin-right: 0;
 }
 
@@ -93,30 +93,263 @@ code {
   min-width: 0;
 }
 
-.semi-navigation-item,
-.semi-navigation-sub-title {
+.sidebar-nav .semi-navigation-item,
+.sidebar-nav .semi-navigation-sub-title {
   height: 100% !important;
 }
 
-.semi-navigation-item-collapsed {
+.sidebar-nav .semi-navigation-item-collapsed {
   height: 44px !important;
 }
 
-#root
-  > section
-  > header
-  > section
-  > div
-  > div
-  > div
-  > div.semi-navigation-header-list-outer
-  > div.semi-navigation-list-wrapper
-  > ul
-  > div
-  > a
-  > li
-  > span {
-  font-weight: 600 !important;
+/* ==================== 头部共享样式 ==================== */
+.header-action-button {
+  padding: 6px !important;
+  color: inherit !important;
+  background-color: var(--semi-color-fill-0) !important;
+  border-radius: 9999px !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.header-action-button:hover,
+.header-action-button:focus-visible {
+  background-color: var(--semi-color-fill-1) !important;
+}
+
+.header-dropdown-menu {
+  background: var(--semi-color-bg-overlay) !important;
+  border: 1px solid var(--semi-color-border) !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+[theme-mode='dark'] .header-dropdown-menu {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+.header-dropdown-item {
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  color: var(--semi-color-text-0) !important;
+}
+
+.header-dropdown-item:hover {
+  background: var(--semi-color-fill-1) !important;
+}
+
+.header-dropdown-item-danger:hover {
+  background: var(--semi-color-danger-light-default) !important;
+  color: var(--semi-color-danger) !important;
+}
+
+.header-user-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px !important;
+  border-radius: 9999px !important;
+  background-color: var(--semi-color-fill-0) !important;
+  transition: background-color 0.15s ease;
+}
+
+.header-user-button:hover,
+.header-user-button:focus-visible {
+  background-color: var(--semi-color-fill-1) !important;
+}
+
+.header-auth-button,
+.header-auth-button-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.header-auth-button {
+  background: var(--semi-color-fill-0) !important;
+}
+
+.header-auth-button:hover,
+.header-auth-button:focus-visible {
+  background: var(--semi-color-fill-1) !important;
+}
+
+.header-auth-button-primary span {
+  color: var(--semi-color-white);
+}
+
+/* ==================== 认证页共享样式 ==================== */
+.auth-provider-button {
+  width: 100%;
+  min-height: 48px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px !important;
+  border: 1px solid var(--semi-color-border) !important;
+  background: var(--semi-color-bg-0) !important;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.auth-provider-button:hover,
+.auth-provider-button:focus-visible {
+  background: var(--semi-color-fill-0) !important;
+  border-color: var(--semi-color-primary-light-hover) !important;
+}
+
+.auth-provider-button .semi-button-content,
+.auth-primary-action .semi-button-content,
+.auth-secondary-action .semi-button-content {
+  justify-content: center;
+}
+
+.auth-primary-action,
+.auth-secondary-action {
+  width: 100%;
+  min-height: 48px !important;
+  border-radius: 9999px !important;
+}
+
+.auth-primary-action {
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.auth-primary-action:hover,
+.auth-primary-action:focus-visible {
+  filter: brightness(0.98);
+  box-shadow: 0 10px 24px rgba(var(--semi-blue-5), 0.18);
+}
+
+.auth-secondary-action {
+  background: var(--semi-color-fill-0) !important;
+}
+
+.auth-secondary-action:hover,
+.auth-secondary-action:focus-visible {
+  background: var(--semi-color-fill-1) !important;
+}
+
+.auth-inline-link {
+  color: var(--semi-color-primary);
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.auth-inline-link:hover {
+  color: var(--semi-color-primary-hover);
+}
+
+/* ==================== 热点页共享样式 ==================== */
+.dashboard-toolbar-button {
+  border-radius: 9999px !important;
+  color: var(--semi-color-text-2) !important;
+  background: var(--semi-color-fill-0) !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-toolbar-button:hover,
+.dashboard-toolbar-button:focus-visible {
+  color: var(--semi-color-primary) !important;
+  background: var(--semi-color-primary-light-default) !important;
+}
+
+.dashboard-legend-footer {
+  padding: 12px;
+  background: var(--semi-color-fill-0);
+  border-top: 1px solid var(--semi-color-border);
+  border-radius: 0 0 16px 16px;
+}
+
+.dashboard-legend-text {
+  color: var(--semi-color-text-2);
+}
+
+.playground-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: var(--semi-color-fill-0);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.playground-input-shell:hover {
+  background: var(--semi-color-fill-1);
+  border-color: var(--semi-color-primary-light-hover);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.playground-input-action,
+.playground-input-action-primary {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.playground-input-action {
+  background: var(--semi-color-bg-0) !important;
+}
+
+.playground-input-action:hover,
+.playground-input-action:focus-visible {
+  background: var(--semi-color-danger-light-default) !important;
+  color: var(--semi-color-danger) !important;
+}
+
+.playground-input-action-primary {
+  background: var(--semi-color-primary) !important;
+  color: var(--semi-color-white) !important;
+}
+
+.playground-input-action-primary:hover,
+.playground-input-action-primary:focus-visible {
+  background: var(--semi-color-primary-hover) !important;
+}
+
+/* ==================== 管理面板共享样式 ==================== */
+.console-page-shell {
+  margin-top: 60px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.admin-data-table {
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.mobile-table-card {
+  border-radius: 12px !important;
+  box-shadow: var(--semi-shadow-elevated);
 }
 
 /* 自定义侧边栏样式 */
@@ -367,7 +600,9 @@ code {
   line-height: 1;
   background-color: var(--semi-color-fill-0);
   color: var(--semi-color-text-2);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .sbg-badge-active {
@@ -932,8 +1167,8 @@ html.dark .with-pastel-balls::before {
 }
 
 /* ==================== semi-ui 组件自定义样式 ==================== */
-.semi-card-header,
-.semi-card-body {
+.table-scroll-card .semi-card-header,
+.table-scroll-card .semi-card-body {
   padding: 10px !important;
 }
 
@@ -977,8 +1212,11 @@ html.dark .with-pastel-balls::before {
 .semi-input-wrapper,
 .semi-tabs-tab-button,
 .semi-select,
-.semi-button,
 .semi-datepicker-range-input {
+  border-radius: 8px !important;
+}
+
+.semi-button {
   border-radius: 10px !important;
 }
 
@@ -1005,4 +1243,6 @@ html.dark .with-pastel-balls::before {
   }
 }
 
-.ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+.ec-dbcd0a3c01b55203 {
+  forced-color-adjust: auto;
+}

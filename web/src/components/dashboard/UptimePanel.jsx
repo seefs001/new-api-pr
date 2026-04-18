@@ -63,7 +63,7 @@ const UptimePanel = ({
             size='small'
             theme='borderless'
             type='tertiary'
-            className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
+            className='dashboard-toolbar-button'
           />
         </div>
       }
@@ -131,7 +131,7 @@ const UptimePanel = ({
 
       {/* 图例 */}
       {uptimeData.length > 0 && (
-        <div className='p-3 bg-gray-50 rounded-b-2xl'>
+        <div className='dashboard-legend-footer'>
           <div className='flex flex-wrap gap-3 text-xs justify-center'>
             {uptimeLegendData.map((legend, index) => (
               <div key={index} className='flex items-center gap-1'>
@@ -139,7 +139,7 @@ const UptimePanel = ({
                   className='w-2 h-2 rounded-full'
                   style={{ backgroundColor: legend.color }}
                 />
-                <span className='text-gray-600'>{legend.label}</span>
+                <span className='dashboard-legend-text'>{legend.label}</span>
               </div>
             ))}
           </div>

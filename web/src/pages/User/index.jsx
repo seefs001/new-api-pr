@@ -22,7 +22,7 @@ import UsersTable from '../../components/table/users';
 
 const User = () => {
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='console-page-shell'>
       <UsersTable />
     </div>
   );

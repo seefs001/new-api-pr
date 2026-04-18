@@ -218,7 +218,7 @@ const Home = () => {
                       theme='solid'
                       type='primary'
                       size={isMobile ? 'default' : 'large'}
-                      className='!rounded-3xl px-8 py-2'
+                      className='!rounded-lg px-8 py-2'
                       icon={<IconPlay />}
                     >
                       {t('获取密钥')}
@@ -227,7 +227,7 @@ const Home = () => {
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
                       size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-3xl px-6 py-2'
+                      className='flex items-center !rounded-lg px-6 py-2'
                       icon={<IconGithubLogo />}
                       onClick={() =>
                         window.open(
@@ -242,7 +242,7 @@ const Home = () => {
                     docsLink && (
                       <Button
                         size={isMobile ? 'default' : 'large'}
-                        className='flex items-center !rounded-3xl px-6 py-2'
+                        className='flex items-center !rounded-lg px-6 py-2'
                         icon={<IconFile />}
                         onClick={() => window.open(docsLink, '_blank')}
                       >

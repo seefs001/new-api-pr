@@ -99,7 +99,7 @@ const ModelsTable = (modelsData) => {
           style={{ padding: 30 }}
         />
       }
-      className='rounded-xl overflow-hidden'
+      className='admin-data-table'
       size='middle'
     />
   );

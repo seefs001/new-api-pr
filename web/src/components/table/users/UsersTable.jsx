@@ -196,7 +196,7 @@ const UsersTable = (usersData) => {
             style={{ padding: 30 }}
           />
         }
-        className='overflow-hidden'
+        className='admin-data-table'
         size='middle'
       />
 
