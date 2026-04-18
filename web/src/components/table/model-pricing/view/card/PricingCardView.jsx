@@ -323,15 +323,16 @@ const PricingCardView = ({
                         <Tooltip
                           content={t('倍率是为了方便换算不同价格的模型')}
                         >
-                          <IconHelpCircle
-                            className='text-blue-500 cursor-pointer'
-                            size='small'
+                          <span
+                            className='inline-flex text-blue-500 cursor-pointer'
                             onClick={(e) => {
                               e.stopPropagation();
                               setModalImageUrl('/ratio.png');
                               setIsModalOpenurl(true);
                             }}
-                          />
+                          >
+                            <IconHelpCircle size='small' />
+                          </span>
                         </Tooltip>
                       </div>
                       <div className='grid grid-cols-3 gap-2 text-xs text-gray-600'>

@@ -614,7 +614,9 @@ export default function UpstreamRatioSync(props) {
                     '该模型存在固定价格与倍率计费方式冲突，请确认选择',
                   )}
                 >
-                  <AlertTriangle size={14} className='text-yellow-500' />
+                  <span className='inline-flex'>
+                    <AlertTriangle size={14} className='text-yellow-500' />
+                  </span>
                 </Tooltip>
               </div>
             );
@@ -803,7 +805,9 @@ export default function UpstreamRatioSync(props) {
                     position='left'
                     content={t('该数据可能不可信，请谨慎使用')}
                   >
-                    <AlertTriangle size={16} className='text-yellow-500' />
+                    <span className='inline-flex'>
+                      <AlertTriangle size={16} className='text-yellow-500' />
+                    </span>
                   </Tooltip>
                 )}
               </div>

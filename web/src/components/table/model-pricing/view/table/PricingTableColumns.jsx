@@ -196,13 +196,15 @@ export const getPricingTableColumns = ({
       <div className='flex items-center space-x-1'>
         <span>{t('倍率')}</span>
         <Tooltip content={t('倍率是为了方便换算不同价格的模型')}>
-          <IconHelpCircle
-            className='text-blue-500 cursor-pointer'
+          <span
+            className='inline-flex text-blue-500 cursor-pointer'
             onClick={() => {
               setModalImageUrl('/ratio.png');
               setIsModalOpenurl(true);
             }}
-          />
+          >
+            <IconHelpCircle />
+          </span>
         </Tooltip>
       </div>
     ),

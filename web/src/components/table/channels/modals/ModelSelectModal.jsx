@@ -291,10 +291,12 @@ const ModelSelectModal = ({
                         position='top'
                         content={t('来自模型重定向，尚未加入模型列表')}
                       >
-                        <IconInfoCircle
-                          size='small'
-                          className='text-amber-500 cursor-help'
-                        />
+                        <span className='inline-flex'>
+                          <IconInfoCircle
+                            size='small'
+                            className='text-amber-500 cursor-help'
+                          />
+                        </span>
                       </Tooltip>
                     )}
                   </span>
