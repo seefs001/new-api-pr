@@ -21,7 +21,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, transformWithEsbuild } from 'vite';
 import path from 'path';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
-import semiViteCompatPlugin from './build/vite-plugin-semi-compat.js';
+import semiViteCompatPlugin from './vite-plugin-semi-compat.js';
 
 // https://vitejs.dev/config/
 export default defineConfig({
