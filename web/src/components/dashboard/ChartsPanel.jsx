@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { PieChart } from 'lucide-react';
-import { VChart } from '@visactor/react-vchart';
+import LazyVChart from '../common/LazyVChart';
 
 const ChartsPanel = ({
   activeChartTab,
@@ -70,22 +70,22 @@ const ChartsPanel = ({
     >
       <div className='h-96 p-2'>
         {activeChartTab === '1' && (
-          <VChart spec={spec_line} option={CHART_CONFIG} />
+          <LazyVChart spec={spec_line} option={CHART_CONFIG} />
         )}
         {activeChartTab === '2' && (
-          <VChart spec={spec_model_line} option={CHART_CONFIG} />
+          <LazyVChart spec={spec_model_line} option={CHART_CONFIG} />
         )}
         {activeChartTab === '3' && (
-          <VChart spec={spec_pie} option={CHART_CONFIG} />
+          <LazyVChart spec={spec_pie} option={CHART_CONFIG} />
         )}
         {activeChartTab === '4' && (
-          <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+          <LazyVChart spec={spec_rank_bar} option={CHART_CONFIG} />
         )}
         {activeChartTab === '5' && isAdminUser && (
-          <VChart spec={spec_user_rank} option={CHART_CONFIG} />
+          <LazyVChart spec={spec_user_rank} option={CHART_CONFIG} />
         )}
         {activeChartTab === '6' && isAdminUser && (
-          <VChart spec={spec_user_trend} option={CHART_CONFIG} />
+          <LazyVChart spec={spec_user_trend} option={CHART_CONFIG} />
         )}
       </div>
     </Card>

@@ -32,7 +32,7 @@ import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
-import { getCurrencyConfig } from '../../../helpers/render';
+import { getCurrencyConfig } from '../../../helpers/quotaFormatters';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,

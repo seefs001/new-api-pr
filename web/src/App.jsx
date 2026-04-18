@@ -20,38 +20,43 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
 import { Route, Routes, useLocation, useParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
-import User from './pages/User';
-import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
-import RegisterForm from './components/auth/RegisterForm';
-import LoginForm from './components/auth/LoginForm';
+import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers/auth';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
-import Setting from './pages/Setting';
 import { StatusContext } from './context/Status';
-
-import PasswordResetForm from './components/auth/PasswordResetForm';
-import PasswordResetConfirm from './components/auth/PasswordResetConfirm';
-import Channel from './pages/Channel';
-import Token from './pages/Token';
-import Redemption from './pages/Redemption';
-import TopUp from './pages/TopUp';
-import Log from './pages/Log';
-import Chat from './pages/Chat';
-import Chat2Link from './pages/Chat2Link';
-import Midjourney from './pages/Midjourney';
-import Pricing from './pages/Pricing';
-import Task from './pages/Task';
-import ModelPage from './pages/Model';
-import ModelDeploymentPage from './pages/ModelDeployment';
-import Playground from './pages/Playground';
-import Subscription from './pages/Subscription';
-import OAuth2Callback from './components/auth/OAuth2Callback';
-import PersonalSetting from './components/settings/PersonalSetting';
-import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
 
 const Home = lazy(() => import('./pages/Home'));
+const Setup = lazy(() => import('./pages/Setup'));
+const User = lazy(() => import('./pages/User'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Channel = lazy(() => import('./pages/Channel'));
+const Token = lazy(() => import('./pages/Token'));
+const Playground = lazy(() => import('./pages/Playground'));
+const Redemption = lazy(() => import('./pages/Redemption'));
+const TopUp = lazy(() => import('./pages/TopUp'));
+const Log = lazy(() => import('./pages/Log'));
+const Chat = lazy(() => import('./pages/Chat'));
+const Chat2Link = lazy(() => import('./pages/Chat2Link'));
+const Midjourney = lazy(() => import('./pages/Midjourney'));
+const Task = lazy(() => import('./pages/Task'));
+const ModelPage = lazy(() => import('./pages/Model'));
+const ModelDeploymentPage = lazy(() => import('./pages/ModelDeployment'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Setting = lazy(() => import('./pages/Setting'));
+const PersonalSetting = lazy(
+  () => import('./components/settings/PersonalSetting'),
+);
+const LoginForm = lazy(() => import('./components/auth/LoginForm'));
+const RegisterForm = lazy(() => import('./components/auth/RegisterForm'));
+const PasswordResetForm = lazy(
+  () => import('./components/auth/PasswordResetForm'),
+);
+const PasswordResetConfirm = lazy(
+  () => import('./components/auth/PasswordResetConfirm'),
+);
+const OAuth2Callback = lazy(() => import('./components/auth/OAuth2Callback'));
+const Pricing = lazy(() => import('./pages/Pricing'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -111,7 +116,9 @@ function App() {
           path='/console/models'
           element={
             <AdminRoute>
-              <ModelPage />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <ModelPage />
+              </Suspense>
             </AdminRoute>
           }
         />
@@ -119,7 +126,9 @@ function App() {
           path='/console/deployment'
           element={
             <AdminRoute>
-              <ModelDeploymentPage />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <ModelDeploymentPage />
+              </Suspense>
             </AdminRoute>
           }
         />
@@ -127,7 +136,9 @@ function App() {
           path='/console/subscription'
           element={
             <AdminRoute>
-              <Subscription />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Subscription />
+              </Suspense>
             </AdminRoute>
           }
         />
@@ -135,7 +146,9 @@ function App() {
           path='/console/channel'
           element={
             <AdminRoute>
-              <Channel />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Channel />
+              </Suspense>
             </AdminRoute>
           }
         />
@@ -143,7 +156,9 @@ function App() {
           path='/console/token'
           element={
             <PrivateRoute>
-              <Token />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Token />
+              </Suspense>
             </PrivateRoute>
           }
         />
@@ -151,7 +166,9 @@ function App() {
           path='/console/playground'
           element={
             <PrivateRoute>
-              <Playground />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Playground />
+              </Suspense>
             </PrivateRoute>
           }
         />
@@ -159,7 +176,9 @@ function App() {
           path='/console/redemption'
           element={
             <AdminRoute>
-              <Redemption />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Redemption />
+              </Suspense>
             </AdminRoute>
           }
         />
@@ -167,7 +186,9 @@ function App() {
           path='/console/user'
           element={
             <AdminRoute>
-              <User />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <User />
+              </Suspense>
             </AdminRoute>
           }
         />
@@ -281,7 +302,9 @@ function App() {
           path='/console/log'
           element={
             <PrivateRoute>
-              <Log />
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Log />
+              </Suspense>
             </PrivateRoute>
           }
         />

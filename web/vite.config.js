@@ -19,17 +19,30 @@ For commercial licensing, please contact support@quantumnous.com
 
 import react from '@vitejs/plugin-react';
 import { defineConfig, transformWithEsbuild } from 'vite';
-import pkg from '@douyinfe/vite-plugin-semi';
 import path from 'path';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
-const { vitePluginSemi } = pkg;
+import semiViteCompatPlugin from './build/vite-plugin-semi-compat';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: [
+      {
+        find: /^@lobehub\/ui\/icons$/,
+        replacement: path.resolve(
+          __dirname,
+          './src/shims/lobehub-ui-icons.jsx',
+        ),
+      },
+      {
+        find: /^@lobehub\/ui$/,
+        replacement: path.resolve(__dirname, './src/shims/lobehub-ui.jsx'),
+      },
+      {
+        find: '@',
+        replacement: path.resolve(__dirname, './src'),
+      },
+    ],
   },
   plugins: [
     codeInspectorPlugin({
@@ -51,38 +64,102 @@ export default defineConfig({
       },
     },
     react(),
-    vitePluginSemi({
-      cssLayer: true,
+    semiViteCompatPlugin({
+      cssLayer: false,
     }),
   ],
-  optimizeDeps: {
-    force: true,
-    esbuildOptions: {
-      loader: {
-        '.js': 'jsx',
-        '.json': 'json',
-      },
-    },
-  },
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-core': ['react', 'react-dom', 'react-router-dom'],
-          'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
-          tools: ['axios', 'history', 'marked'],
-          'react-components': [
-            'react-dropzone',
-            'react-fireworks',
-            'react-telegram-login',
-            'react-toastify',
-            'react-turnstile',
-          ],
-          i18n: [
-            'i18next',
-            'react-i18next',
-            'i18next-browser-languagedetector',
-          ],
+        manualChunks(id) {
+          if (id.includes('/src/helpers/render.jsx')) {
+            return 'helper-render';
+          }
+          if (id.includes('/src/helpers/dashboard/')) {
+            return 'helper-dashboard';
+          }
+          if (id.includes('/src/helpers/layoutIcons.jsx')) {
+            return 'layout-icons';
+          }
+          if (id.includes('/src/components/common/markdown/')) {
+            return 'markdown-renderer';
+          }
+          if (!id.includes('node_modules')) {
+            return;
+          }
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/react-router-dom/')
+          ) {
+            return 'react-core';
+          }
+          if (
+            id.includes('/@douyinfe/semi-icons/') ||
+            id.includes('/@douyinfe/semi-ui/') ||
+            id.includes('/@douyinfe/semi-foundation/')
+          ) {
+            return 'semi-ui';
+          }
+          if (
+            id.includes('/@lobehub/icons/') ||
+            id.includes('/@lobehub/ui/') ||
+            id.includes('/antd-style/') ||
+            id.includes('/react-layout-kit/')
+          ) {
+            return 'lobe-icons';
+          }
+          if (
+            id.includes('/@visactor/') ||
+            id.includes('/@visactor/vchart') ||
+            id.includes('/@visactor/vrender') ||
+            id.includes('/@visactor/react-vchart')
+          ) {
+            return 'visactor';
+          }
+          if (
+            id.includes('/react-markdown/') ||
+            id.includes('/remark-') ||
+            id.includes('/rehype-') ||
+            id.includes('/highlight.js/') ||
+            id.includes('/mermaid/')
+          ) {
+            return 'markdown-vendor';
+          }
+          if (
+            id.includes('/cytoscape/') ||
+            id.includes('/cytoscape-') ||
+            id.includes('/dagre') ||
+            id.includes('/cose-bilkent/')
+          ) {
+            return 'graph-vendor';
+          }
+          if (id.includes('/katex/')) {
+            return 'katex';
+          }
+          if (
+            id.includes('/axios/') ||
+            id.includes('/history/') ||
+            id.includes('/marked/')
+          ) {
+            return 'tools';
+          }
+          if (
+            id.includes('/react-dropzone/') ||
+            id.includes('/react-fireworks/') ||
+            id.includes('/react-telegram-login/') ||
+            id.includes('/react-toastify/') ||
+            id.includes('/react-turnstile/')
+          ) {
+            return 'react-components';
+          }
+          if (
+            id.includes('/i18next/') ||
+            id.includes('/react-i18next/') ||
+            id.includes('/i18next-browser-languagedetector/')
+          ) {
+            return 'i18n';
+          }
         },
       },
     },

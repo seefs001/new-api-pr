@@ -30,7 +30,7 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
-import { convertUSDToCurrency } from '../../../helpers/render';
+import { convertUSDToCurrency } from '../../../helpers/quotaFormatters';
 
 const { Text } = Typography;
 
