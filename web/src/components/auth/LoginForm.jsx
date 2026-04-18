@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import {
@@ -36,6 +41,7 @@ import {
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onCustomOAuthClicked,
+  consumePostLoginRedirect,
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
@@ -69,6 +75,7 @@ import { SiDiscord } from 'react-icons/si';
 
 const LoginForm = () => {
   let navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const githubButtonTextKeyByState = {
     idle: '使用 GitHub 继续',
@@ -135,12 +142,12 @@ const LoginForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
 
   useEffect(() => {
@@ -198,7 +205,7 @@ const LoginForm = () => {
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
-        navigate('/');
+        navigateAfterLogin();
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
@@ -214,6 +221,10 @@ const LoginForm = () => {
   function handleChange(name, value) {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }
+
+  const navigateAfterLogin = () => {
+    navigate(consumePostLoginRedirect({ location }), { replace: true });
+  };
 
   async function handleSubmit(e) {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
@@ -255,7 +266,7 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          navigateAfterLogin();
         } else {
           showError(message);
         }
@@ -300,7 +311,7 @@ const LoginForm = () => {
         showSuccess('登录成功！');
         setUserData(data);
         updateAPI();
-        navigate('/');
+        navigateAfterLogin();
       } else {
         showError(message);
       }
@@ -456,7 +467,7 @@ const LoginForm = () => {
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        navigate('/console');
+        navigateAfterLogin();
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -491,7 +502,7 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    navigateAfterLogin();
   };
 
   // 返回登录页面
@@ -958,8 +969,7 @@ const LoginForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
+        {showEmailLogin || !hasOAuthLoginOptions
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

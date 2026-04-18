@@ -23,7 +23,15 @@ import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
-import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
+import {
+  getLogo,
+  getSystemName,
+  API,
+  showSuccess,
+  buildLoginHref,
+  buildPathFromLocation,
+  savePostLoginRedirect,
+} from '../../helpers';
 import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
@@ -37,7 +45,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
+  const [currentLang, setCurrentLang] = useState(
+    normalizeLanguage(i18n.language),
+  );
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
@@ -144,8 +154,10 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     showSuccess(t('注销成功!'));
     userDispatch({ type: 'logout' });
     localStorage.removeItem('user');
-    navigate('/login');
-  }, [navigate, t, userDispatch]);
+    const currentPath = buildPathFromLocation(location);
+    savePostLoginRedirect(currentPath);
+    navigate(buildLoginHref(currentPath), { replace: true });
+  }, [location, navigate, t, userDispatch]);
 
   const handleLanguageChange = useCallback(
     async (lang) => {
