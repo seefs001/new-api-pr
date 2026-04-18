@@ -15,6 +15,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var commonGroupCol string
@@ -254,6 +255,11 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// PostgreSQL may still have legacy single-column unique constraints from older schemas.
+	// GORM tries to drop them using a synthesized name, which fails when the real name differs.
+	if err := cleanupLegacySingleColumnUniqueConstraints(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -293,6 +299,73 @@ func migrateDB() error {
 			return err
 		}
 	}
+	return nil
+}
+
+type constraintNameRow struct {
+	ConstraintName string `gorm:"column:constraint_name"`
+}
+
+func cleanupLegacySingleColumnUniqueConstraints() error {
+	if !common.UsingPostgreSQL {
+		return nil
+	}
+
+	targets := []struct {
+		tableName  string
+		columnName string
+	}{
+		{tableName: "models", columnName: "model_name"},
+		{tableName: "vendors", columnName: "name"},
+		{tableName: "prefill_groups", columnName: "name"},
+	}
+
+	for _, target := range targets {
+		if err := dropSingleColumnUniqueConstraintsByColumn(target.tableName, target.columnName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func dropSingleColumnUniqueConstraintsByColumn(tableName, columnName string) error {
+	if !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	var constraints []constraintNameRow
+	err := DB.Raw(`
+SELECT tc.constraint_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+  ON tc.constraint_catalog = kcu.constraint_catalog
+ AND tc.constraint_schema = kcu.constraint_schema
+ AND tc.table_name = kcu.table_name
+ AND tc.constraint_name = kcu.constraint_name
+WHERE tc.constraint_schema = current_schema()
+  AND tc.table_name = ?
+  AND tc.constraint_type = 'UNIQUE'
+GROUP BY tc.constraint_name
+HAVING COUNT(*) = 1
+   AND MIN(kcu.column_name) = ?
+   AND MAX(kcu.column_name) = ?
+`, tableName, columnName, columnName).Scan(&constraints).Error
+	if err != nil {
+		return fmt.Errorf("failed to inspect legacy unique constraints for %s.%s: %w", tableName, columnName, err)
+	}
+
+	for _, constraint := range constraints {
+		if err := DB.Exec(
+			"ALTER TABLE ? DROP CONSTRAINT IF EXISTS ?",
+			clause.Table{Name: tableName},
+			clause.Column{Name: constraint.ConstraintName},
+		).Error; err != nil {
+			return fmt.Errorf("failed to drop legacy unique constraint %s on %s.%s: %w", constraint.ConstraintName, tableName, columnName, err)
+		}
+		common.SysLog(fmt.Sprintf("dropped legacy unique constraint %s on %s.%s", constraint.ConstraintName, tableName, columnName))
+	}
+
 	return nil
 }
 
