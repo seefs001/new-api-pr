@@ -1474,6 +1474,8 @@
     "开启后，该渠道请求 Claude 时将强制追加 ?beta=true（无需客户端手动传参）": "When enabled, requests to Claude through this channel will force append ?beta=true (no need for clients to pass this parameter manually)",
     "开启后，违规请求将额外扣费。": "When enabled, violation requests will incur additional charges.",
     "开启后不限制：必须设置模型倍率": "After enabling, no limit: must set model ratio",
+    "自用模式 root 自动充值": "Self-use root auto top-up",
+    "自用模式下 root 管理员额度低于 100 美元时自动增加 1000 美元，并记录为系统充值": "In self-use mode, when the root admin quota is below 100 USD, the system automatically adds 1000 USD and records it as a system top-up",
     "开启后创建令牌默认选择auto分组，初始令牌也将设为auto": "When enabled, new tokens default to auto group, initial tokens are also set to auto",
     "开启后未登录用户无法访问模型广场": "When enabled, unauthenticated users cannot access the model marketplace",
     "开启后检测到新增模型会自动加入当前渠道模型列表": "",

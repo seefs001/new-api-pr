@@ -1480,6 +1480,8 @@
     "开启后，该渠道请求 Claude 时将强制追加 ?beta=true（无需客户端手动传参）": "Une fois activé, les requêtes à Claude via ce canal ajouteront automatiquement ?beta=true (pas besoin de le passer manuellement côté client)",
     "开启后，违规请求将额外扣费。": "Lorsqu'il est activé, les requêtes en violation entraîneront des frais supplémentaires.",
     "开启后不限制：必须设置模型倍率": "Après l'activation, aucune limite : le ratio de modèle doit être défini",
+    "自用模式 root 自动充值": "Recharge automatique root en mode usage personnel",
+    "自用模式下 root 管理员额度低于 100 美元时自动增加 1000 美元，并记录为系统充值": "En mode usage personnel, lorsque le quota de l'administrateur root est inférieur à 100 USD, le système ajoute automatiquement 1000 USD et l'enregistre comme une recharge système",
     "开启后创建令牌默认选择auto分组，初始令牌也将设为auto": "When enabled, new tokens default to auto group, initial tokens are also set to auto",
     "开启后未登录用户无法访问模型广场": "Lorsqu'il est activé, les utilisateurs non authentifiés ne peuvent pas accéder à la place du marché des modèles",
     "开启后检测到新增模型会自动加入当前渠道模型列表": "",

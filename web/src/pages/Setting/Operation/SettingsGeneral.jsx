@@ -57,6 +57,7 @@ export default function GeneralSettings(props) {
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,
     SelfUseModeEnabled: false,
+    SelfUseRootAutoTopUpEnabled: true,
     'token_setting.max_user_tokens': 1000,
   });
   const refForm = useRef();
@@ -388,6 +389,17 @@ export default function GeneralSettings(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={handleFieldChange('SelfUseModeEnabled')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'SelfUseRootAutoTopUpEnabled'}
+                  label={t('自用模式 root 自动充值')}
+                  extraText={t('自用模式下 root 管理员额度低于 100 美元时自动增加 1000 美元，并记录为系统充值')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange('SelfUseRootAutoTopUpEnabled')}
                 />
               </Col>
             </Row>

@@ -11,12 +11,18 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
 
 const UserNameMaxLength = 20
+
+const (
+	selfUseRootAutoTopUpTriggerUSD = 100.0
+	selfUseRootAutoTopUpAmountUSD  = 1000.0
+)
 
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
@@ -776,6 +782,50 @@ func ValidateAccessToken(token string) (*User, error) {
 	return user, nil
 }
 
+func shouldCheckSelfUseRootQuota(quota int) bool {
+	if !operation_setting.SelfUseModeEnabled || !operation_setting.SelfUseRootAutoTopUpEnabled {
+		return false
+	}
+	triggerQuota := int64(selfUseRootAutoTopUpTriggerUSD * common.QuotaPerUnit)
+	return int64(quota) < triggerQuota
+}
+
+func computeSelfUseRootQuotaTopUp(currentQuota int) (delta int, target int, shouldTopUp bool) {
+	triggerQuota := int64(selfUseRootAutoTopUpTriggerUSD * common.QuotaPerUnit)
+	topUpAmount := int64(selfUseRootAutoTopUpAmountUSD * common.QuotaPerUnit)
+
+	current := int64(currentQuota)
+	if current >= triggerQuota {
+		return 0, currentQuota, false
+	}
+
+	return int(topUpAmount), int(current + topUpAmount), true
+}
+
+func autoTopUpSelfUseRootQuota(user *User) (quota int, changed bool, err error) {
+	if user == nil || user.Role != common.RoleRootUser || !operation_setting.SelfUseModeEnabled || !operation_setting.SelfUseRootAutoTopUpEnabled {
+		if user == nil {
+			return 0, false, nil
+		}
+		return user.Quota, false, nil
+	}
+
+	delta, targetQuota, shouldTopUp := computeSelfUseRootQuotaTopUp(user.Quota)
+	if !shouldTopUp {
+		return user.Quota, false, nil
+	}
+
+	oldQuota := user.Quota
+	if err := IncreaseUserQuota(user.Id, delta, true); err != nil {
+		return 0, false, err
+	}
+
+	RecordLog(user.Id, LogTypeTopup,
+		fmt.Sprintf("自用模式系统自动充值 %s，原额度 %s，当前额度 %s", logger.LogQuota(delta), logger.LogQuota(oldQuota), logger.LogQuota(targetQuota)))
+	common.SysLog(fmt.Sprintf("self-use root auto topup applied user_id=%d old_quota=%d delta=%d new_quota=%d", user.Id, oldQuota, delta, targetQuota))
+	return targetQuota, true, nil
+}
+
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
 func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 	defer func() {
@@ -791,12 +841,21 @@ func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 	if !fromDB && common.RedisEnabled {
 		quota, err := getUserQuotaCache(id)
 		if err == nil {
-			return quota, nil
+			if !shouldCheckSelfUseRootQuota(quota) {
+				return quota, nil
+			}
 		}
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Model(&User{}).Where("id = ?", id).Select("quota").Find(&quota).Error
+	var user User
+	err = DB.Where("id = ?", id).Select("id", "role", "quota").First(&user).Error
+	if err != nil {
+		return 0, err
+	}
+	quota = user.Quota
+
+	quota, _, err = autoTopUpSelfUseRootQuota(&user)
 	if err != nil {
 		return 0, err
 	}

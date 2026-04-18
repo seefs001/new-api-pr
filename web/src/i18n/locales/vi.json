@@ -1452,6 +1452,8 @@
     "开启后，该渠道请求 Claude 时将强制追加 ?beta=true（无需客户端手动传参）": "Khi bật, yêu cầu đến Claude qua kênh này sẽ tự động thêm ?beta=true (client không cần truyền thủ công)",
     "开启后，违规请求将额外扣费。": "Khi bật, các yêu cầu vi phạm sẽ bị tính phí bổ sung.",
     "开启后不限制：必须设置模型倍率": "Sau khi bật, không giới hạn: phải đặt tỷ lệ mô hình",
+    "自用模式 root 自动充值": "Tự động nạp tiền root ở chế độ tự dùng",
+    "自用模式下 root 管理员额度低于 100 美元时自动增加 1000 美元，并记录为系统充值": "Trong chế độ tự dùng, khi hạn mức của quản trị viên root thấp hơn 100 USD, hệ thống sẽ tự động cộng thêm 1000 USD và ghi nhận là nạp tiền hệ thống",
     "开启后创建令牌默认选择auto分组，初始令牌也将设为auto": "When enabled, new tokens default to auto group, initial tokens are also set to auto",
     "开启后未登录用户无法访问模型广场": "Khi bật, người dùng chưa xác thực không thể truy cập thị trường mô hình",
     "开启后检测到新增模型会自动加入当前渠道模型列表": "",
