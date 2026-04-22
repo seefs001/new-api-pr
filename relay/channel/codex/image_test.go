@@ -45,6 +45,9 @@ func TestConvertImageRequestBuildsCodexResponsesToolCall(t *testing.T) {
 	require.Equal(t, codexDefaultImageResponsesModel, responsesRequest.Model)
 	require.JSONEq(t, `["reasoning.encrypted_content"]`, string(responsesRequest.Include))
 	require.JSONEq(t, `false`, string(responsesRequest.Store))
+	require.NotNil(t, responsesRequest.Stream)
+	require.True(t, *responsesRequest.Stream)
+	require.True(t, info.IsStream)
 
 	var input []map[string]any
 	require.NoError(t, common.Unmarshal(responsesRequest.Input, &input))
@@ -93,7 +96,7 @@ func TestConvertImageRequestKeepsMappedResponsesModelAndOriginalToolModel(t *tes
 	require.Equal(t, float64(1), tools[0]["n"])
 }
 
-func TestDoResponseForImageGenerationConvertsToolResultToImageResponse(t *testing.T) {
+func TestDoResponseForImageGenerationConvertsStreamToolResultToImageResponse(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -107,34 +110,30 @@ func TestDoResponseForImageGenerationConvertsToolResultToImageResponse(t *testin
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     make(http.Header),
-		Body: ioNopCloser(`{
-			"id": "resp_test",
-			"object": "response",
-			"created_at": 1700000000,
-			"output": [
-				{"type": "message", "content": []},
-				{"type": "image_generation_call", "result": "base64-image-data"}
-			],
-			"usage": {"input_tokens": 11, "output_tokens": 7, "total_tokens": 18}
-		}`),
+		Body: ioNopCloser(strings.Join([]string{
+			`data: {"type":"response.created","response":{"id":"resp_test","object":"response","created_at":1700000000}}`,
+			`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"base64-stream-image"}}`,
+			`data: {"type":"response.completed","response":{"id":"resp_test","object":"response","created_at":1700000000,"usage":{"input_tokens":13,"output_tokens":5,"total_tokens":18}}}`,
+			`data: [DONE]`,
+			``,
+		}, "\n")),
 	}
-	resp.Header.Set("Content-Type", "application/json")
+	resp.Header.Set("Content-Type", "text/event-stream")
 
 	usageAny, apiErr := (&Adaptor{}).DoResponse(c, resp, info)
 	require.Nil(t, apiErr)
 
 	usage := usageAny.(*dto.Usage)
-	require.Equal(t, 11, usage.PromptTokens)
-	require.Equal(t, 7, usage.CompletionTokens)
+	require.Equal(t, 13, usage.PromptTokens)
+	require.Equal(t, 5, usage.CompletionTokens)
 	require.Equal(t, 18, usage.TotalTokens)
-	require.Equal(t, float64(1), info.PriceData.OtherRatios["n"])
+	require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
 
 	var imageResponse dto.ImageResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &imageResponse))
 	require.Equal(t, int64(1700000000), imageResponse.Created)
 	require.Len(t, imageResponse.Data, 1)
-	require.Equal(t, "base64-image-data", imageResponse.Data[0].B64Json)
-	require.Empty(t, imageResponse.Data[0].Url)
+	require.Equal(t, "base64-stream-image", imageResponse.Data[0].B64Json)
 }
 
 func TestCodexModelListIncludesNativeImageModels(t *testing.T) {

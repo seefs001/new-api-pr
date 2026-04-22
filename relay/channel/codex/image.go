@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ const (
 	codexDefaultImageResponsesModel  = "gpt-5.4-mini"
 	codexResponsesInputRoleUser      = "user"
 	codexResponsesInputTypeInputText = "input_text"
+	codexImageStreamMaxBufferSize    = 64 << 20
 )
 
 var (
@@ -73,10 +75,18 @@ type codexImageGenerationOutput struct {
 	Result json.RawMessage `json:"result"`
 }
 
+type codexImageGenerationStreamEvent struct {
+	Type     string                        `json:"type"`
+	Response *codexImageGenerationResponse `json:"response,omitempty"`
+	Item     *codexImageGenerationOutput   `json:"item,omitempty"`
+	Error    any                           `json:"error,omitempty"`
+}
+
 func convertCodexImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if info == nil || info.RelayMode != relayconstant.RelayModeImagesGenerations {
 		return nil, errors.New("codex channel: only /v1/images/generations is supported for image requests")
 	}
+	info.IsStream = true
 
 	input, err := common.Marshal([]codexResponsesInputItem{
 		{
@@ -104,6 +114,7 @@ func convertCodexImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 		Include:      codexImageResponsesInclude,
 		Instructions: json.RawMessage(`""`),
 		Store:        json.RawMessage(`false`),
+		Stream:       common.GetPointer(true),
 		Tools:        tools,
 		User:         request.User,
 	}, nil
@@ -172,13 +183,8 @@ func stringOrDefault(value string, fallback string) string {
 func codexImageGenerationHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
-	responseBody, err := io.ReadAll(resp.Body)
+	codexResponse, err := readCodexImageGenerationStream(resp.Body)
 	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
-	}
-
-	var codexResponse codexImageGenerationResponse
-	if err = common.Unmarshal(responseBody, &codexResponse); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
@@ -203,9 +209,61 @@ func codexImageGenerationHandler(c *gin.Context, resp *http.Response, info *rela
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	resp.Header.Set("Content-Type", "application/json")
 	service.IOCopyBytesGracefully(c, resp, jsonResponse)
 
 	return codexImageUsage(&codexResponse), nil
+}
+
+func readCodexImageGenerationStream(reader io.Reader) (codexImageGenerationResponse, error) {
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 64<<10), codexImageStreamMaxBufferSize)
+
+	response := codexImageGenerationResponse{}
+	received := false
+
+	for scanner.Scan() {
+		data := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(data, "data:") {
+			continue
+		}
+		data = strings.TrimSpace(strings.TrimPrefix(data, "data:"))
+		if data == "" {
+			continue
+		}
+		if strings.HasPrefix(data, "[DONE]") {
+			break
+		}
+
+		var event codexImageGenerationStreamEvent
+		if err := common.UnmarshalJsonStr(data, &event); err != nil {
+			return codexImageGenerationResponse{}, err
+		}
+		if event.Error != nil {
+			response.Error = event.Error
+			received = true
+		}
+		if event.Item != nil && event.Item.Type == dto.ResponsesOutputTypeImageGenerationCall {
+			response.Output = append(response.Output, *event.Item)
+			received = true
+		}
+		if event.Response != nil {
+			previousOutput := response.Output
+			response = *event.Response
+			if len(response.Output) == 0 {
+				response.Output = previousOutput
+			}
+			received = true
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return codexImageGenerationResponse{}, err
+	}
+	if !received {
+		return codexImageGenerationResponse{}, errors.New("codex channel: empty image generation stream")
+	}
+	return response, nil
 }
 
 func responseCodex2OpenAIImage(response *codexImageGenerationResponse, info *relaycommon.RelayInfo) (*dto.ImageResponse, error) {
