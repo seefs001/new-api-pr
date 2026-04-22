@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -185,7 +186,13 @@ func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[st
 		case types.RelayFormatGemini:
 			chain = append(chain, "Google Gemini")
 		case types.RelayFormatOpenAIResponses:
-			chain = append(chain, "OpenAI Responses")
+			if relayInfo.ChannelMeta != nil && relayInfo.ChannelType == constant.ChannelTypeCodex && relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations {
+				chain = append(chain, "Codex Built-in Image Generation Tool")
+			} else {
+				chain = append(chain, "OpenAI Responses")
+			}
+		case types.RelayFormatOpenAIImage:
+			chain = append(chain, "OpenAI Image")
 		default:
 			chain = append(chain, string(f))
 		}
