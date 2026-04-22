@@ -157,37 +157,41 @@ const renderTokenKey = (
                 await toggleTokenVisibility(record);
               }}
             />
-            <Dropdown
-              trigger='click'
-              position='bottomRight'
-              clickToHide
-              menu={[
-                {
-                  node: 'item',
-                  name: t('复制密钥'),
-                  onClick: () => copyTokenKey(record),
-                },
-                {
-                  node: 'item',
-                  name: t('复制连接信息'),
-                  onClick: () => copyTokenConnectionString(record),
-                },
-              ]}
+            <span
+              className='inline-flex'
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
             >
-              <span className='inline-flex'>
-                <Button
-                  theme='borderless'
-                  size='small'
-                  type='tertiary'
-                  icon={<IconCopy />}
-                  loading={loading}
-                  aria-label='copy token key'
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                  }}
-                />
-              </span>
-            </Dropdown>
+              <Dropdown
+                trigger='click'
+                position='bottomRight'
+                clickToHide
+                menu={[
+                  {
+                    node: 'item',
+                    name: t('复制密钥'),
+                    onClick: () => copyTokenKey(record),
+                  },
+                  {
+                    node: 'item',
+                    name: t('复制连接信息'),
+                    onClick: () => copyTokenConnectionString(record),
+                  },
+                ]}
+              >
+                <span className='inline-flex'>
+                  <Button
+                    theme='borderless'
+                    size='small'
+                    type='tertiary'
+                    icon={<IconCopy />}
+                    loading={loading}
+                    aria-label='copy token key'
+                  />
+                </span>
+              </Dropdown>
+            </span>
           </div>
         }
       />

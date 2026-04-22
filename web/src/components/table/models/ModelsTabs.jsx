@@ -121,53 +121,59 @@ const ModelsTabs = ({
                 >
                   {count}
                 </Tag>
-                <Dropdown
-                  trigger='click'
-                  position='bottomRight'
-                  render={
-                    <Dropdown.Menu>
-                      <Dropdown.Item
-                        icon={<IconEdit />}
-                        onClick={(e) => handleEditVendor(vendor, e)}
-                      >
-                        {t('编辑')}
-                      </Dropdown.Item>
-                      <Dropdown.Item
-                        type='danger'
-                        icon={<IconDelete />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          Modal.confirm({
-                            title: t('确认删除'),
-                            content: t(
-                              '确定要删除供应商 "{{name}}" 吗？此操作不可撤销。',
-                              { name: vendor.name },
-                            ),
-                            onOk: () => handleDeleteVendor(vendor, e),
-                            okText: t('删除'),
-                            cancelText: t('取消'),
-                            type: 'warning',
-                            okType: 'danger',
-                          });
-                        }}
-                      >
-                        {t('删除')}
-                      </Dropdown.Item>
-                    </Dropdown.Menu>
-                  }
-                  onClickOutSide={(e) => e.stopPropagation()}
+                <span
+                  className='inline-flex'
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
                 >
-                  <span className='inline-flex'>
-                    <Button
-                      size='small'
-                      type='tertiary'
-                      theme='outline'
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {t('操作')}
-                    </Button>
-                  </span>
-                </Dropdown>
+                  <Dropdown
+                    trigger='click'
+                    position='bottomRight'
+                    render={
+                      <Dropdown.Menu>
+                        <Dropdown.Item
+                          icon={<IconEdit />}
+                          onClick={(e) => handleEditVendor(vendor, e)}
+                        >
+                          {t('编辑')}
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                          type='danger'
+                          icon={<IconDelete />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            Modal.confirm({
+                              title: t('确认删除'),
+                              content: t(
+                                '确定要删除供应商 "{{name}}" 吗？此操作不可撤销。',
+                                { name: vendor.name },
+                              ),
+                              onOk: () => handleDeleteVendor(vendor, e),
+                              okText: t('删除'),
+                              cancelText: t('取消'),
+                              type: 'warning',
+                              okType: 'danger',
+                            });
+                          }}
+                        >
+                          {t('删除')}
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    }
+                    onClickOutSide={(e) => e.stopPropagation()}
+                  >
+                    <span className='inline-flex'>
+                      <Button
+                        size='small'
+                        type='tertiary'
+                        theme='outline'
+                      >
+                        {t('操作')}
+                      </Button>
+                    </span>
+                  </Dropdown>
+                </span>
               </span>
             }
           />
