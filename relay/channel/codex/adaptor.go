@@ -34,7 +34,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	return convertCodexImageRequest(info, request)
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -112,8 +112,14 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
+	if info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact &&
+		info.RelayMode != relayconstant.RelayModeImagesGenerations {
 		return nil, types.NewError(errors.New("codex channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
+	}
+
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		return codexImageGenerationHandler(c, resp, info)
 	}
 
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
@@ -135,8 +141,10 @@ func (a *Adaptor) GetChannelName() string {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
-		return "", errors.New("codex channel: only /v1/responses and /v1/responses/compact are supported")
+	if info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact &&
+		info.RelayMode != relayconstant.RelayModeImagesGenerations {
+		return "", errors.New("codex channel: only /v1/responses, /v1/responses/compact and /v1/images/generations are supported")
 	}
 	path := "/backend-api/codex/responses"
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
