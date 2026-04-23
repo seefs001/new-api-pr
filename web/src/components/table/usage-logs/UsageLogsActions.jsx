@@ -42,10 +42,6 @@ const LogsActions = ({
     </Space>
   );
 
-  const quota = stat?.quota ?? 0;
-  const rpm = stat?.rpm ?? 0;
-  const tpm = stat?.tpm ?? 0;
-
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
       <Skeleton loading={needSkeleton} active placeholder={placeholder}>
@@ -59,7 +55,7 @@ const LogsActions = ({
             }}
             className='!rounded-lg'
           >
-            {t('消耗额度')}: {renderQuota(quota)}
+            {t('消耗额度')}: {renderQuota(stat.quota)}
           </Tag>
           <Tag
             color='pink'
@@ -70,7 +66,7 @@ const LogsActions = ({
             }}
             className='!rounded-lg'
           >
-            RPM: {rpm}
+            RPM: {stat.rpm}
           </Tag>
           <Tag
             color='white'
@@ -82,7 +78,7 @@ const LogsActions = ({
             }}
             className='!rounded-lg'
           >
-            TPM: {tpm}
+            TPM: {stat.tpm}
           </Tag>
         </Space>
       </Skeleton>
