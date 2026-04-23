@@ -87,7 +87,8 @@ export const useLogsData = () => {
   // Statistics state
   const [stat, setStat] = useState({
     quota: 0,
-    token: 0,
+    rpm: 0,
+    tpm: 0,
   });
 
   // Form state
@@ -314,13 +315,16 @@ export const useLogsData = () => {
       return;
     }
     setLoadingStat(true);
-    if (isAdminUser) {
-      await getLogStat();
-    } else {
-      await getLogSelfStat();
+    try {
+      if (isAdminUser) {
+        await getLogStat();
+      } else {
+        await getLogSelfStat();
+      }
+      setShowStat(true);
+    } finally {
+      setLoadingStat(false);
     }
-    setShowStat(true);
-    setLoadingStat(false);
   };
 
   // User info function
