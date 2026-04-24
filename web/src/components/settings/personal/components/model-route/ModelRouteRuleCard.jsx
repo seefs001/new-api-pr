@@ -25,13 +25,7 @@ const ModelRouteRuleCard = ({
   onUpdateTarget,
 }) => {
   return (
-    <div
-      className='border rounded-xl p-4'
-      style={{
-        borderColor: 'var(--semi-color-border)',
-        backgroundColor: 'var(--semi-color-bg-1)',
-      }}
-    >
+    <div>
       <div className='flex justify-between items-center mb-4'>
         <Space wrap>
           <Switch

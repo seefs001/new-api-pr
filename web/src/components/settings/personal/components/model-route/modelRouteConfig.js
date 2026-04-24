@@ -17,11 +17,11 @@ export const strategyOptions = (t) => [
 export const createDefaultModelRouteRule = () => ({
   id: `route_${Date.now()}`,
   name: '',
-  enabled: true,
-  source_models: ['auto'],
-  endpoints: ['/v1/responses'],
-  target_models: ['gpt-5.5'],
-  targets: [{ model: 'gpt-5.5', weight: 100 }],
+  enabled: false,
+  source_models: [],
+  endpoints: [],
+  target_models: [],
+  targets: [],
   strategy: 'first',
 });
 
