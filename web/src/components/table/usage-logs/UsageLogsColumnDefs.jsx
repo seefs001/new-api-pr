@@ -144,10 +144,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -185,11 +182,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -269,13 +262,44 @@ function renderBillingTag(record, t) {
   return null;
 }
 
+function getUserModelRoute(other) {
+  const route = other?.user_model_route;
+  if (!route || typeof route !== 'object' || !route.target_model) {
+    return null;
+  }
+  return route;
+}
+
+function renderRouteInfoLine(label, value, copyText) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  return (
+    <div className='flex items-center'>
+      <Typography.Text strong style={{ marginRight: 8 }}>
+        {label}:
+      </Typography.Text>
+      {copyText ? (
+        renderModelTag(value, {
+          onClick: (event) => {
+            copyText(event, value).then((r) => {});
+          },
+        })
+      ) : (
+        <Typography.Text>{value}</Typography.Text>
+      )}
+    </div>
+  );
+}
+
 function renderModelName(record, copyText, t) {
   let other = getLogOther(record.other);
   let modelMapped =
     other?.is_model_mapped &&
     other?.upstream_model_name &&
     other?.upstream_model_name !== '';
-  if (!modelMapped) {
+  const userModelRoute = getUserModelRoute(other);
+  if (!modelMapped && !userModelRoute) {
     return renderModelTag(record.model_name, {
       onClick: (event) => {
         copyText(event, record.model_name).then((r) => {});
@@ -289,28 +313,45 @@ function renderModelName(record, copyText, t) {
             content={
               <div style={{ padding: 10 }}>
                 <Space vertical align={'start'}>
-                  <div className='flex items-center'>
-                    <Typography.Text strong style={{ marginRight: 8 }}>
-                      {t('请求并计费模型')}:
-                    </Typography.Text>
-                    {renderModelTag(record.model_name, {
-                      onClick: (event) => {
-                        copyText(event, record.model_name).then((r) => {});
-                      },
-                    })}
-                  </div>
-                  <div className='flex items-center'>
-                    <Typography.Text strong style={{ marginRight: 8 }}>
-                      {t('实际模型')}:
-                    </Typography.Text>
-                    {renderModelTag(other.upstream_model_name, {
-                      onClick: (event) => {
-                        copyText(event, other.upstream_model_name).then(
-                          (r) => {},
-                        );
-                      },
-                    })}
-                  </div>
+                  {userModelRoute && (
+                    <>
+                      {renderRouteInfoLine(
+                        t('用户模型路由'),
+                        userModelRoute.rule_name ||
+                          userModelRoute.rule_id ||
+                          t('未命名规则'),
+                      )}
+                      {renderRouteInfoLine(
+                        t('请求模型'),
+                        userModelRoute.source_model,
+                        copyText,
+                      )}
+                      {renderRouteInfoLine(
+                        t('真实模型'),
+                        userModelRoute.target_model,
+                        copyText,
+                      )}
+                      {renderRouteInfoLine(
+                        t('请求路径'),
+                        userModelRoute.endpoint,
+                      )}
+                      {renderRouteInfoLine(t('策略'), userModelRoute.strategy)}
+                    </>
+                  )}
+                  {modelMapped && (
+                    <>
+                      {renderRouteInfoLine(
+                        t('请求并计费模型'),
+                        record.model_name,
+                        copyText,
+                      )}
+                      {renderRouteInfoLine(
+                        t('实际模型'),
+                        other.upstream_model_name,
+                        copyText,
+                      )}
+                    </>
+                  )}
                 </Space>
               </div>
             }
@@ -461,7 +502,11 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
-  const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
+  const summaryOpts = {
+    ...other,
+    displayMode: billingDisplayMode,
+    outputMode: 'segments',
+  };
 
   if (other?.billing_mode === 'tiered_expr') {
     return { segments: renderTieredModelPriceSimple(summaryOpts) };

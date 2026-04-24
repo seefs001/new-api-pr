@@ -79,11 +79,11 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
-	appendUserModelRouteInfo(ctx, other)
+	AppendUserModelRouteInfo(ctx, other)
 	return other
 }
 
-func appendUserModelRouteInfo(ctx *gin.Context, other map[string]interface{}) {
+func AppendUserModelRouteInfo(ctx *gin.Context, other map[string]interface{}) {
 	if ctx == nil || other == nil {
 		return
 	}

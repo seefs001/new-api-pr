@@ -164,7 +164,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -376,6 +378,32 @@ export const useLogsData = () => {
       return `${chain.join(' -> ')}`;
     };
 
+    const userModelRouteDisplayValue = (route) => {
+      if (!route || typeof route !== 'object') {
+        return null;
+      }
+      const ruleName = route.rule_name || route.rule_id || t('未命名规则');
+      const sourceModel = route.source_model || '-';
+      const targetModel = route.target_model || '-';
+      const endpoint = route.endpoint || '-';
+      const strategy = route.strategy || 'first';
+      return (
+        <div
+          style={{
+            maxWidth: 600,
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+            lineHeight: 1.6,
+          }}
+        >
+          <div>{`${ruleName}: ${sourceModel} -> ${targetModel}`}</div>
+          <div style={{ color: 'var(--semi-color-text-2)' }}>
+            {`${t('请求路径')}: ${endpoint} · ${t('策略')}: ${strategy}`}
+          </div>
+        </div>
+      );
+    };
+
     let expandDatesLocal = {};
     for (let i = 0; i < logs.length; i++) {
       logs[i].timestamp2string = timestamp2string(logs[i].created_at);
@@ -383,7 +411,10 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -430,7 +461,10 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('日志详情'),
             value: other?.claude
-              ? renderClaudeLogContent({ ...other, displayMode: billingDisplayMode })
+              ? renderClaudeLogContent({
+                  ...other,
+                  displayMode: billingDisplayMode,
+                })
               : renderLogContent({ ...other, displayMode: billingDisplayMode }),
           });
         }
@@ -462,7 +496,6 @@ export const useLogsData = () => {
             value: other.upstream_model_name,
           });
         }
-
         const isViolationFeeLog =
           other?.violation_fee === true ||
           Boolean(other?.violation_fee_code) ||
@@ -509,6 +542,13 @@ export const useLogsData = () => {
           });
         }
       }
+      const routeDisplay = userModelRouteDisplayValue(other?.user_model_route);
+      if (routeDisplay) {
+        expandDataLocal.push({
+          key: t('用户模型路由'),
+          value: routeDisplay,
+        });
+      }
       if (logs[i].type === 6) {
         if (other?.task_id) {
           expandDataLocal.push({
@@ -520,7 +560,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -537,7 +584,8 @@ export const useLogsData = () => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -552,7 +600,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),
