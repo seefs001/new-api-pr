@@ -39,6 +39,9 @@ import {
   BILLING_VAR_REGEX,
 } from '../constants';
 import { visit } from 'unist-util-visit';
+
+export { renderQuota } from './quotaFormatters';
+
 import * as LobeIcons from '@lobehub/icons';
 import {
   OpenAI,
