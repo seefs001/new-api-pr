@@ -33,7 +33,7 @@ import {
   Col,
 } from '@douyinfe/semi-ui';
 import { IconMail, IconKey, IconBell, IconLink } from '@douyinfe/semi-icons';
-import { ShieldCheck, Bell, DollarSign, Settings } from 'lucide-react';
+import { ShieldCheck, Bell, DollarSign, Settings, Route } from 'lucide-react';
 import {
   renderQuotaWithPrompt,
   API,
@@ -48,6 +48,7 @@ import {
   mergeAdminConfig,
   useSidebar,
 } from '../../../../hooks/common/useSidebar';
+import ModelRouteSettings from '../components/model-route/ModelRouteSettings';
 
 const NotificationSettings = ({
   t,
@@ -478,7 +479,10 @@ const NotificationSettings = ({
                     checkedText={t('开')}
                     uncheckedText={t('关')}
                     onChange={(value) =>
-                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                      handleFormChange(
+                        'upstreamModelUpdateNotifyEnabled',
+                        value,
+                      )
                     }
                     extraText={t(
                       '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
@@ -771,6 +775,22 @@ const NotificationSettings = ({
                   )}
                 />
               </div>
+            </TabPane>
+
+            <TabPane
+              tab={
+                <div className='flex items-center'>
+                  <Route size={16} className='mr-2' />
+                  {t('模型路由')}
+                </div>
+              }
+              itemKey='modelRoute'
+            >
+              <ModelRouteSettings
+                t={t}
+                rules={notificationSettings.modelRouteRules}
+                onChange={(rules) => handleFormChange('modelRouteRules', rules)}
+              />
             </TabPane>
 
             {/* 隐私设置 Tab */}

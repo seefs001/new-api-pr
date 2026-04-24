@@ -79,7 +79,19 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	appendUserModelRouteInfo(ctx, other)
 	return other
+}
+
+func appendUserModelRouteInfo(ctx *gin.Context, other map[string]interface{}) {
+	if ctx == nil || other == nil {
+		return
+	}
+	route, ok := common.GetContextKeyType[UserModelRouteResult](ctx, constant.ContextKeyUserModelRoute)
+	if !ok || route.TargetModel == "" {
+		return
+	}
+	other["user_model_route"] = route
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

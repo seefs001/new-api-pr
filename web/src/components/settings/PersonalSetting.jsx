@@ -95,6 +95,7 @@ const PersonalSetting = () => {
     upstreamModelUpdateNotifyEnabled: false,
     acceptUnsetModelRatioModel: false,
     recordIpLog: false,
+    modelRouteRules: [],
   });
 
   const {
@@ -198,6 +199,9 @@ const PersonalSetting = () => {
         acceptUnsetModelRatioModel:
           settings.accept_unset_model_ratio_model || false,
         recordIpLog: settings.record_ip_log || false,
+        modelRouteRules: Array.isArray(settings.model_route_rules)
+          ? settings.model_route_rules
+          : [],
       });
     }
   }, [userState?.user?.setting]);
@@ -528,6 +532,7 @@ const PersonalSetting = () => {
         accept_unset_model_ratio_model:
           notificationSettings.acceptUnsetModelRatioModel,
         record_ip_log: notificationSettings.recordIpLog,
+        model_route_rules: notificationSettings.modelRouteRules || [],
       });
 
       if (res.data.success) {

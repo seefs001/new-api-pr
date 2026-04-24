@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"slices"
 	"strconv"
@@ -35,6 +36,20 @@ func Distribute() func(c *gin.Context) {
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
+		}
+		if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
+			routeSourceModel := modelRequest.Model
+			isResponsesCompact := strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact")
+			if isResponsesCompact && strings.HasSuffix(routeSourceModel, ratio_setting.CompactModelSuffix) {
+				routeSourceModel = strings.TrimSuffix(routeSourceModel, ratio_setting.CompactModelSuffix)
+			}
+			if route, matched := service.ResolveUserModelRoute(userSetting, routeSourceModel, c.Request.URL.String(), rand.Float64()); matched {
+				common.SetContextKey(c, constant.ContextKeyUserModelRoute, route)
+				modelRequest.Model = route.TargetModel
+				if isResponsesCompact {
+					modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+				}
+			}
 		}
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
