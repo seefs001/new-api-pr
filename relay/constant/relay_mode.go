@@ -48,6 +48,7 @@ const (
 	RelayModeResponses
 
 	RelayModeRealtime
+	RelayModeResponsesWS
 
 	RelayModeGemini
 

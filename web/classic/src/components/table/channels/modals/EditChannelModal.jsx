@@ -128,6 +128,7 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
 };
 
 const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
+const RESPONSES_WS_BASE_URL = 'wss://api.openai.com';
 
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
@@ -155,6 +156,8 @@ function type2secretPrompt(type) {
       return '按照如下格式输入: AccessKey|SecretAccessKey';
     case 57:
       return '请输入 JSON 格式的 OAuth 凭据（必须包含 access_token 和 account_id）';
+    case 58:
+      return 'Enter OpenAI API key, format: sk-...';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -674,6 +677,16 @@ const EditChannelModal = (props) => {
             base_url: 'https://ark.cn-beijing.volces.com',
           }));
           break;
+        case 58:
+          localModels = getChannelModels(value);
+          if (formApiRef.current) {
+            formApiRef.current.setValue('base_url', RESPONSES_WS_BASE_URL);
+          }
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: RESPONSES_WS_BASE_URL,
+          }));
+          break;
         default:
           localModels = getChannelModels(value);
           break;
@@ -972,6 +985,13 @@ const EditChannelModal = (props) => {
           (typeof data.base_url === 'string' && data.base_url.trim() === ''))
       ) {
         data.base_url = 'https://ark.cn-beijing.volces.com';
+      }
+      if (
+        data.type === 58 &&
+        (!data.base_url ||
+          (typeof data.base_url === 'string' && data.base_url.trim() === ''))
+      ) {
+        data.base_url = RESPONSES_WS_BASE_URL;
       }
 
       initialBaseUrlRef.current = data.base_url || '';

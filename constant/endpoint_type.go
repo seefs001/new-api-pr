@@ -5,6 +5,7 @@ type EndpointType string
 const (
 	EndpointTypeOpenAI                EndpointType = "openai"
 	EndpointTypeOpenAIResponse        EndpointType = "openai-response"
+	EndpointTypeOpenAIResponseWS      EndpointType = "openai-response-websocket"
 	EndpointTypeOpenAIResponseCompact EndpointType = "openai-response-compact"
 	EndpointTypeAnthropic             EndpointType = "anthropic"
 	EndpointTypeGemini                EndpointType = "gemini"

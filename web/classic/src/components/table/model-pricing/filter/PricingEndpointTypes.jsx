@@ -66,6 +66,9 @@ const PricingEndpointTypes = ({
 
   // 端点类型显示名称映射
   const getEndpointTypeLabel = (endpointType) => {
+    if (endpointType === 'openai-response-websocket') {
+      return 'Response WebSocket';
+    }
     return endpointType;
   };
 

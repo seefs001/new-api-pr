@@ -7,6 +7,7 @@ const (
 	RelayFormatClaude                                = "claude"
 	RelayFormatGemini                                = "gemini"
 	RelayFormatOpenAIResponses                       = "openai_responses"
+	RelayFormatOpenAIResponsesWS                     = "openai_responses_websocket"
 	RelayFormatOpenAIResponsesCompaction             = "openai_responses_compaction"
 	RelayFormatOpenAIAudio                           = "openai_audio"
 	RelayFormatOpenAIImage                           = "openai_image"

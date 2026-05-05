@@ -379,8 +379,28 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 	info.RelayMode = relayconstant.RelayModeResponses
 	info.RelayFormat = types.RelayFormatOpenAIResponses
 
+	initResponsesUsageInfo(info, request)
+	return info
+}
+
+func GenRelayInfoResponsesWebSocket(c *gin.Context, request *dto.OpenAIResponsesRequest, ws *websocket.Conn) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayMode = relayconstant.RelayModeResponsesWS
+	info.RelayFormat = types.RelayFormatOpenAIResponsesWS
+	info.ClientWs = ws
+	info.IsStream = true
+	c.Set(string(constant.ContextKeyIsStream), true)
+
+	initResponsesUsageInfo(info, request)
+	return info
+}
+
+func initResponsesUsageInfo(info *RelayInfo, request *dto.OpenAIResponsesRequest) {
 	info.ResponsesUsageInfo = &ResponsesUsageInfo{
 		BuiltInTools: make(map[string]*BuildInToolInfo),
+	}
+	if request == nil {
+		return
 	}
 	if len(request.Tools) > 0 {
 		for _, tool := range request.GetToolsMap() {
@@ -399,7 +419,6 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 			}
 		}
 	}
-	return info
 }
 
 func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
@@ -553,6 +572,12 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)
+			break
+		}
+		err = errors.New("request is not a OpenAIResponsesRequest")
+	case types.RelayFormatOpenAIResponsesWS:
+		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
+			info = GenRelayInfoResponsesWebSocket(c, request, ws)
 			break
 		}
 		err = errors.New("request is not a OpenAIResponsesRequest")

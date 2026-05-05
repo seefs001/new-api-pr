@@ -95,7 +95,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode == relayconstant.RelayModeRealtime {
+	if info.RelayMode == relayconstant.RelayModeRealtime || info.RelayMode == relayconstant.RelayModeResponsesWS {
 		if strings.HasPrefix(info.ChannelBaseUrl, "https://") {
 			baseUrl := strings.TrimPrefix(info.ChannelBaseUrl, "https://")
 			baseUrl = "wss://" + baseUrl
@@ -595,7 +595,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		info.RelayMode == relayconstant.RelayModeAudioTranslation ||
 		info.RelayMode == relayconstant.RelayModeImagesEdits {
 		return channel.DoFormRequest(a, c, info, requestBody)
-	} else if info.RelayMode == relayconstant.RelayModeRealtime {
+	} else if info.RelayMode == relayconstant.RelayModeRealtime || info.RelayMode == relayconstant.RelayModeResponsesWS {
 		return channel.DoWssRequest(a, c, info, requestBody)
 	} else {
 		return channel.DoApiRequest(a, c, info, requestBody)
