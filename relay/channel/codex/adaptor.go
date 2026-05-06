@@ -108,6 +108,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if info.RelayMode == relayconstant.RelayModeResponsesWS {
+		return channel.DoWssRequest(a, c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
@@ -135,14 +138,29 @@ func (a *Adaptor) GetChannelName() string {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
+	if info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact &&
+		info.RelayMode != relayconstant.RelayModeResponsesWS {
 		return "", errors.New("codex channel: only /v1/responses and /v1/responses/compact are supported")
 	}
 	path := "/backend-api/codex/responses"
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
 		path = "/backend-api/codex/responses/compact"
 	}
+	if info.RelayMode == relayconstant.RelayModeResponsesWS {
+		info.ChannelBaseUrl = codexWebSocketBaseURL(info.ChannelBaseUrl)
+	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
+}
+
+func codexWebSocketBaseURL(baseURL string) string {
+	if strings.HasPrefix(baseURL, "https://") {
+		return "wss://" + strings.TrimPrefix(baseURL, "https://")
+	}
+	if strings.HasPrefix(baseURL, "http://") {
+		return "ws://" + strings.TrimPrefix(baseURL, "http://")
+	}
+	return baseURL
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -176,6 +194,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	}
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
+	}
+
+	if info.RelayMode == relayconstant.RelayModeResponsesWS {
+		return nil
 	}
 
 	// chatgpt.com/backend-api/codex/responses is strict about Content-Type.

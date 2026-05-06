@@ -46,6 +46,11 @@ var responsesWebSocketUpgrader = websocket.Upgrader{
 	},
 }
 
+var responsesWebSocketChannelTypes = []int{
+	constant.ChannelTypeResponsesWS,
+	constant.ChannelTypeCodex,
+}
+
 func RelayResponsesWebSocket(c *gin.Context) {
 	clientConn, err := responsesWebSocketUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -193,8 +198,8 @@ func selectResponsesWebSocketChannel(c *gin.Context, modelName string) (*model.C
 		if channel.Status != common.ChannelStatusEnabled {
 			return nil, types.NewErrorWithStatusCode(errors.New("channel is disabled"), types.ErrorCodeGetChannelFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 		}
-		if channel.Type != constant.ChannelTypeResponsesWS {
-			return nil, types.NewErrorWithStatusCode(fmt.Errorf("channel type must be %s", constant.GetChannelTypeName(constant.ChannelTypeResponsesWS)), types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		if !isResponsesWebSocketChannelType(channel.Type) {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("channel type must support responses websocket"), types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		return channel, nil
 	}
@@ -212,7 +217,7 @@ func selectResponsesWebSocketChannel(c *gin.Context, modelName string) (*model.C
 	if tokenGroup == "auto" {
 		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 		for _, group := range service.GetUserAutoGroup(userGroup) {
-			channel, err = model.GetRandomSatisfiedChannel(group, modelName, 0, constant.ChannelTypeResponsesWS)
+			channel, err = model.GetRandomSatisfiedChannel(group, modelName, 0, responsesWebSocketChannelTypes...)
 			if err != nil {
 				return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 			}
@@ -223,7 +228,7 @@ func selectResponsesWebSocketChannel(c *gin.Context, modelName string) (*model.C
 			}
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(tokenGroup, modelName, 0, constant.ChannelTypeResponsesWS)
+		channel, err = model.GetRandomSatisfiedChannel(tokenGroup, modelName, 0, responsesWebSocketChannelTypes...)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 		}
@@ -237,6 +242,15 @@ func selectResponsesWebSocketChannel(c *gin.Context, modelName string) (*model.C
 		)
 	}
 	return channel, nil
+}
+
+func isResponsesWebSocketChannelType(channelType int) bool {
+	for _, supportedType := range responsesWebSocketChannelTypes {
+		if channelType == supportedType {
+			return true
+		}
+	}
+	return false
 }
 
 func parseSpecificChannelID(value any) (int, error) {
