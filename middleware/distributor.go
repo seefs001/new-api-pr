@@ -29,6 +29,11 @@ type ModelRequest struct {
 
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		if isResponsesWebSocketHandshake(c) {
+			c.Next()
+			return
+		}
+
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
@@ -162,6 +167,15 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func isResponsesWebSocketHandshake(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return c.Request.Method == http.MethodGet &&
+		c.Request.URL.Path == "/v1/responses" &&
+		strings.EqualFold(c.GetHeader("Upgrade"), "websocket")
 }
 
 // getModelFromRequest 从请求中读取模型信息
