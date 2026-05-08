@@ -268,28 +268,29 @@ type OutputTokenDetails struct {
 }
 
 type OpenAIResponsesResponse struct {
-	ID                 string             `json:"id"`
-	Object             string             `json:"object"`
-	CreatedAt          int                `json:"created_at"`
-	Status             json.RawMessage    `json:"status"`
-	Error              any                `json:"error,omitempty"`
-	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
-	Instructions       json.RawMessage    `json:"instructions"`
-	MaxOutputTokens    int                `json:"max_output_tokens"`
-	Model              string             `json:"model"`
-	Output             []ResponsesOutput  `json:"output"`
-	ParallelToolCalls  bool               `json:"parallel_tool_calls"`
-	PreviousResponseID json.RawMessage    `json:"previous_response_id"`
-	Reasoning          *Reasoning         `json:"reasoning"`
-	Store              bool               `json:"store"`
-	Temperature        float64            `json:"temperature"`
-	ToolChoice         json.RawMessage    `json:"tool_choice"`
-	Tools              []map[string]any   `json:"tools"`
-	TopP               float64            `json:"top_p"`
-	Truncation         json.RawMessage    `json:"truncation"`
-	Usage              *Usage             `json:"usage"`
-	User               json.RawMessage    `json:"user"`
-	Metadata           json.RawMessage    `json:"metadata"`
+	ID                 string              `json:"id"`
+	Object             string              `json:"object"`
+	CreatedAt          int                 `json:"created_at"`
+	Status             json.RawMessage     `json:"status"`
+	Error              any                 `json:"error,omitempty"`
+	IncompleteDetails  *IncompleteDetails  `json:"incomplete_details,omitempty"`
+	Instructions       json.RawMessage     `json:"instructions"`
+	MaxOutputTokens    int                 `json:"max_output_tokens"`
+	Model              string              `json:"model"`
+	Output             []ResponsesOutput   `json:"output"`
+	ParallelToolCalls  bool                `json:"parallel_tool_calls"`
+	PreviousResponseID json.RawMessage     `json:"previous_response_id"`
+	Reasoning          *Reasoning          `json:"reasoning"`
+	Store              bool                `json:"store"`
+	Temperature        float64             `json:"temperature"`
+	ToolChoice         json.RawMessage     `json:"tool_choice"`
+	ToolUsage          *ResponsesToolUsage `json:"tool_usage,omitempty"`
+	Tools              []map[string]any    `json:"tools"`
+	TopP               float64             `json:"top_p"`
+	Truncation         json.RawMessage     `json:"truncation"`
+	Usage              *Usage              `json:"usage"`
+	User               json.RawMessage     `json:"user"`
+	Metadata           json.RawMessage     `json:"metadata"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
@@ -311,23 +312,39 @@ func (o *OpenAIResponsesResponse) HasImageGenerationCall() bool {
 
 func (o *OpenAIResponsesResponse) GetQuality() string {
 	if len(o.Output) == 0 {
-		return ""
+		return o.getImageGenerationToolString("quality")
 	}
 	for _, output := range o.Output {
 		if output.Type == ResponsesOutputTypeImageGenerationCall {
 			return output.Quality
 		}
 	}
-	return ""
+	return o.getImageGenerationToolString("quality")
 }
 
 func (o *OpenAIResponsesResponse) GetSize() string {
 	if len(o.Output) == 0 {
-		return ""
+		return o.getImageGenerationToolString("size")
 	}
 	for _, output := range o.Output {
 		if output.Type == ResponsesOutputTypeImageGenerationCall {
 			return output.Size
+		}
+	}
+	return o.getImageGenerationToolString("size")
+}
+
+func (o *OpenAIResponsesResponse) GetImageGenerationToolModel() string {
+	return o.getImageGenerationToolString("model")
+}
+
+func (o *OpenAIResponsesResponse) getImageGenerationToolString(key string) string {
+	if o == nil {
+		return ""
+	}
+	for _, tool := range o.Tools {
+		if common.Interface2String(tool["type"]) == "image_generation" {
+			return common.Interface2String(tool[key])
 		}
 	}
 	return ""
@@ -335,6 +352,19 @@ func (o *OpenAIResponsesResponse) GetSize() string {
 
 type IncompleteDetails struct {
 	Reasoning string `json:"reasoning"`
+}
+
+type ResponsesToolUsage struct {
+	ImageGen *ResponsesImageGenerationToolUsage `json:"image_gen,omitempty"`
+}
+
+type ResponsesImageGenerationToolUsage struct {
+	InputTokens        int                 `json:"input_tokens"`
+	InputTokensDetails *InputTokenDetails  `json:"input_tokens_details,omitempty"`
+	Model              string              `json:"model"`
+	OutputTokens       int                 `json:"output_tokens"`
+	OutputTokenDetails *OutputTokenDetails `json:"output_tokens_details,omitempty"`
+	TotalTokens        int                 `json:"total_tokens"`
 }
 
 type ResponsesOutput struct {

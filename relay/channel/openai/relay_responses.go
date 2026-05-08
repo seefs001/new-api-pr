@@ -34,11 +34,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	if responsesResponse.HasImageGenerationCall() {
-		c.Set("image_generation_call", true)
-		c.Set("image_generation_call_quality", responsesResponse.GetQuality())
-		c.Set("image_generation_call_size", responsesResponse.GetSize())
-	}
+	recordResponsesImageGenerationUsage(c, &responsesResponse)
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
@@ -106,11 +102,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
 					}
 				}
-				if streamResponse.Response.HasImageGenerationCall() {
-					c.Set("image_generation_call", true)
-					c.Set("image_generation_call_quality", streamResponse.Response.GetQuality())
-					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
-				}
+				recordResponsesImageGenerationUsage(c, streamResponse.Response)
 			}
 		case "response.output_text.delta":
 			// 处理输出文本
@@ -147,4 +139,28 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func recordResponsesImageGenerationUsage(c *gin.Context, response *dto.OpenAIResponsesResponse) {
+	if response == nil {
+		return
+	}
+	if response.ToolUsage != nil && response.ToolUsage.ImageGen != nil {
+		c.Set("image_generation_call", true)
+		c.Set("image_generation_call_quality", response.GetQuality())
+		c.Set("image_generation_call_size", response.GetSize())
+		imageGenUsage := *response.ToolUsage.ImageGen
+		if imageGenUsage.Model == "" {
+			imageGenUsage.Model = response.GetImageGenerationToolModel()
+		}
+		if price := service.ComputeResponsesImageGenerationToolPrice(&imageGenUsage); price > 0 {
+			c.Set("image_generation_call_price", price)
+		}
+		return
+	}
+	if response.HasImageGenerationCall() {
+		c.Set("image_generation_call", true)
+		c.Set("image_generation_call_quality", response.GetQuality())
+		c.Set("image_generation_call_size", response.GetSize())
+	}
 }

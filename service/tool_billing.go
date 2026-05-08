@@ -4,7 +4,9 @@ import (
 	"math"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 // ToolCallUsage captures all tool call counts from a single request.
@@ -85,4 +87,38 @@ func ComputeToolCallQuota(usage ToolCallUsage, groupRatio float64) ToolCallResul
 		TotalQuota: totalQuota,
 		Items:      items,
 	}
+}
+
+func ComputeResponsesImageGenerationToolPrice(usage *dto.ResponsesImageGenerationToolUsage) float64 {
+	if usage == nil {
+		return 0
+	}
+
+	modelRatio, ok, _ := ratio_setting.GetModelRatio(usage.Model)
+	if !ok {
+		return operation_setting.GetToolPriceForModel("image_generation", usage.Model) / 1000
+	}
+
+	inputTokens := usage.InputTokens
+	outputTokens := usage.OutputTokens
+	cachedTokens := 0
+	imageInputTokens := 0
+	if usage.InputTokensDetails != nil {
+		cachedTokens = usage.InputTokensDetails.CachedTokens
+		imageInputTokens = usage.InputTokensDetails.ImageTokens
+	}
+	if inputTokens < cachedTokens+imageInputTokens {
+		inputTokens = cachedTokens + imageInputTokens
+	}
+	textInputTokens := inputTokens - cachedTokens - imageInputTokens
+
+	inputPrice := modelRatio * 2
+	completionRatio := ratio_setting.GetCompletionRatio(usage.Model)
+	cacheRatio, _ := ratio_setting.GetCacheRatio(usage.Model)
+	imageRatio, _ := ratio_setting.GetImageRatio(usage.Model)
+
+	return (float64(textInputTokens)*inputPrice +
+		float64(cachedTokens)*inputPrice*cacheRatio +
+		float64(imageInputTokens)*inputPrice*imageRatio +
+		float64(outputTokens)*inputPrice*completionRatio) / 1000000
 }

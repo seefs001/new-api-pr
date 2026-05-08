@@ -24,6 +24,7 @@ var defaultToolPrices = map[string]float64{
 	"web_search_preview": 10.0, // OpenAI web search preview (default: reasoning models)
 	"file_search":        2.5,  // OpenAI file search (Responses API)
 	"google_search":      14.0, // Gemini Grounding with Google Search
+	"image_generation":   GPTImage1High1024x1024 * 1000,
 }
 
 var defaultToolPriceOverrides = map[string]float64{
