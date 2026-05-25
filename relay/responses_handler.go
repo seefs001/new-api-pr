@@ -109,7 +109,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 		defer closer.Close()
 		jsonData = nil
-		info.UpstreamRequestBodySize = size
+		info.SetUpstreamRequestBodySize(size)
 		requestBody = body
 	}
 

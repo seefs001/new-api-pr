@@ -109,6 +109,12 @@ export interface LogOtherData {
     // Manage audit fields (type=3, admin only)
     admin_username?: string
     admin_id?: number | string
+    request_arrived_at_ms?: number
+    upstream_request_started_at_ms?: number
+    upstream_response_finished_at_ms?: number
+    request_body_bytes?: number
+    upstream_request_body_bytes?: number
+    upstream_response_body_bytes?: number
   }
   request_path?: string
   request_conversion?: string[]

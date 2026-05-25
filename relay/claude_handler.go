@@ -184,7 +184,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 		defer closer.Close()
 		jsonData = nil
-		info.UpstreamRequestBodySize = size
+		info.SetUpstreamRequestBodySize(size)
 		requestBody = body
 	}
 

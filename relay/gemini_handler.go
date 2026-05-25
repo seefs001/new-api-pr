@@ -170,7 +170,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 		defer closer.Close()
 		jsonData = nil
-		info.UpstreamRequestBodySize = size
+		info.SetUpstreamRequestBodySize(size)
 		requestBody = body
 	}
 
@@ -275,7 +275,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 	}
 	defer closer.Close()
 	jsonData = nil
-	info.UpstreamRequestBodySize = size
+	info.SetUpstreamRequestBodySize(size)
 	requestBody = body
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)

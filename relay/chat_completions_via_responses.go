@@ -130,7 +130,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	}
 	defer closer.Close()
 	jsonData = nil
-	info.UpstreamRequestBodySize = size
+	info.SetUpstreamRequestBodySize(size)
 	var requestBody io.Reader = body
 
 	var httpResp *http.Response

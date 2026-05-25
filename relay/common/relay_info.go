@@ -96,6 +96,7 @@ type RelayInfo struct {
 	StartTime         time.Time
 	FirstResponseTime time.Time
 	isFirstResponse   bool
+	requestMetrics    requestMetricsState
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
@@ -446,6 +447,10 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
+	arrivalTime := common.GetContextKeyTime(c, constant.ContextKeyRequestArrivalTime)
+	if arrivalTime.IsZero() {
+		arrivalTime = startTime
+	}
 
 	isStream := false
 
@@ -504,6 +509,8 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		info.RequestURLPath = strings.TrimPrefix(info.RequestURLPath, "/pg")
 		info.RequestURLPath = "/v1" + info.RequestURLPath
 	}
+
+	info.SetRequestArrivalTime(arrivalTime)
 
 	userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
 	if ok {

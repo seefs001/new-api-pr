@@ -32,7 +32,12 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
+import {
+  formatLogQuota,
+  formatTimestampToDate,
+  formatTokens,
+  formatUseTime,
+} from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
@@ -72,6 +77,19 @@ function timingTextColorClass(
   if (variant === 'success') return 'text-emerald-600'
   if (variant === 'warning') return 'text-amber-600'
   return 'text-rose-600'
+}
+
+function formatByteSize(value?: number): string {
+  if (value == null || !Number.isFinite(value) || value < 0) return '-'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = value
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  const digits = unitIndex === 0 ? 0 : size >= 10 ? 1 : 2
+  return `${size.toFixed(digits)} ${units[unitIndex]}`
 }
 
 function DetailRow(props: {
@@ -483,6 +501,46 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const useChannel = other?.admin_info?.use_channel
   const channelChain =
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
+  const requestMetricRows =
+    props.isAdmin && adminInfo
+      ? ([
+          adminInfo.request_arrived_at_ms && {
+            label: t('Request Arrival'),
+            value: formatTimestampToDate(
+              adminInfo.request_arrived_at_ms,
+              'milliseconds'
+            ),
+          },
+          adminInfo.upstream_request_started_at_ms && {
+            label: t('Sent to Upstream'),
+            value: formatTimestampToDate(
+              adminInfo.upstream_request_started_at_ms,
+              'milliseconds'
+            ),
+          },
+          adminInfo.upstream_response_finished_at_ms && {
+            label: t('Response Received'),
+            value: formatTimestampToDate(
+              adminInfo.upstream_response_finished_at_ms,
+              'milliseconds'
+            ),
+          },
+          adminInfo.request_body_bytes != null && {
+            label: t('Request Size'),
+            value: formatByteSize(adminInfo.request_body_bytes),
+          },
+          adminInfo.upstream_request_body_bytes != null &&
+            adminInfo.upstream_request_body_bytes !==
+              adminInfo.request_body_bytes && {
+              label: t('Upstream Request Size'),
+              value: formatByteSize(adminInfo.upstream_request_body_bytes),
+            },
+          adminInfo.upstream_response_body_bytes != null && {
+            label: t('Response Size'),
+            value: formatByteSize(adminInfo.upstream_response_body_bytes),
+          },
+        ].filter(Boolean) as Array<{ label: string; value: string }>)
+      : []
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -655,6 +713,19 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     </div>
                   </div>
                 </div>
+              </DetailSection>
+            )}
+
+            {requestMetricRows.length > 0 && (
+              <DetailSection label={t('Request Metrics')}>
+                {requestMetricRows.map((row, idx) => (
+                  <DetailRow
+                    key={idx}
+                    label={row.label}
+                    value={row.value}
+                    mono
+                  />
+                ))}
               </DetailSection>
             )}
 

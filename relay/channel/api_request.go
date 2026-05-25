@@ -40,6 +40,9 @@ func applyUpstreamContentLength(req *http.Request, info *common.RelayInfo) {
 	if info.UpstreamRequestBodySize > 0 && req.ContentLength <= 0 {
 		req.ContentLength = info.UpstreamRequestBodySize
 	}
+	if req.ContentLength > 0 && info.UpstreamRequestBodySize <= 0 {
+		info.SetUpstreamRequestBodySize(req.ContentLength)
+	}
 }
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
@@ -514,6 +517,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	info.MarkUpstreamRequestStart(time.Now())
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())
@@ -522,6 +526,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if resp == nil {
 		return nil, errors.New("resp is nil")
 	}
+	resp.Body = common.TrackUpstreamResponseBody(resp.Body, info)
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {
 		c.Set(common2.UpstreamRequestIdKey, upID)

@@ -71,6 +71,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	AppendRequestLifecycleAdminInfo(ctx, relayInfo, adminInfo)
 
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
@@ -80,6 +81,38 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+// AppendRequestLifecycleAdminInfo writes admin-only request metrics into usage logs.
+func AppendRequestLifecycleAdminInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, adminInfo map[string]interface{}) {
+	if adminInfo == nil {
+		return
+	}
+	if relayInfo == nil {
+		return
+	}
+	metrics := relayInfo.RequestMetricsSnapshot()
+	if metrics.RequestArrivedAt.IsZero() && ctx != nil {
+		metrics.RequestArrivedAt = common.GetContextKeyTime(ctx, constant.ContextKeyRequestArrivalTime)
+	}
+	if !metrics.RequestArrivedAt.IsZero() {
+		adminInfo["request_arrived_at_ms"] = metrics.RequestArrivedAt.UnixMilli()
+	}
+	if !metrics.UpstreamRequestStartedAt.IsZero() {
+		adminInfo["upstream_request_started_at_ms"] = metrics.UpstreamRequestStartedAt.UnixMilli()
+	}
+	if !metrics.UpstreamResponseFinishedAt.IsZero() {
+		adminInfo["upstream_response_finished_at_ms"] = metrics.UpstreamResponseFinishedAt.UnixMilli()
+	}
+	if metrics.RequestBodySize > 0 {
+		adminInfo["request_body_bytes"] = metrics.RequestBodySize
+	}
+	if metrics.UpstreamRequestBodySize > 0 {
+		adminInfo["upstream_request_body_bytes"] = metrics.UpstreamRequestBodySize
+	}
+	if metrics.UpstreamResponseBodySize > 0 {
+		adminInfo["upstream_response_body_bytes"] = metrics.UpstreamResponseBodySize
+	}
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

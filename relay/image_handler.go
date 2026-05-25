@@ -61,7 +61,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 		switch convertedRequest.(type) {
 		case *bytes.Buffer:
-			requestBody = convertedRequest.(io.Reader)
+			buffer := convertedRequest.(*bytes.Buffer)
+			info.SetUpstreamRequestBodySize(int64(buffer.Len()))
+			requestBody = buffer
 		default:
 			jsonData, err := common.Marshal(convertedRequest)
 			if err != nil {
@@ -83,7 +85,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			}
 			defer closer.Close()
 			jsonData = nil
-			info.UpstreamRequestBodySize = size
+			info.SetUpstreamRequestBodySize(size)
 			requestBody = body
 		}
 	}
