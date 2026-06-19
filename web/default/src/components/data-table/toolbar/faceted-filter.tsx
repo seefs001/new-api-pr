@@ -37,6 +37,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 
 type DataTableFacetedFilterProps<TData, TValue> = {
@@ -63,6 +70,17 @@ function DataTableFacetedFilterInner<TData, TValue>({
   const facets = column?.getFacetedUniqueValues()
   const filterValue = column?.getFilterValue() as string[] | undefined
   const selectedValues = new Set(filterValue)
+
+  if (singleSelect && shouldUseSimpleSingleSelect(options)) {
+    return (
+      <DataTableSingleSelectFilter
+        column={column}
+        title={title}
+        options={options}
+        selectedValues={selectedValues}
+      />
+    )
+  }
 
   const handleOptionSelect = (optionValue: string) => {
     const nextSelectedValues = getNextSelectedValues(
@@ -188,9 +206,105 @@ function DataTableFacetedFilterInner<TData, TValue>({
   )
 }
 
+function DataTableSingleSelectFilter<TData, TValue>({
+  column,
+  title,
+  options,
+  selectedValues,
+}: DataTableFacetedFilterProps<TData, TValue> & {
+  selectedValues: Set<string>
+}) {
+  const { t } = useTranslation()
+  const selectedValue = getSingleSelectedValue(selectedValues)
+  const selectedOption = options.find((option) => option.value === selectedValue)
+  const optionsWithAll = getOptionsWithAll(options)
+  const shouldClearAllValue = selectedValues.has(ALL_FILTER_VALUE)
+
+  React.useEffect(() => {
+    if (shouldClearAllValue) {
+      column?.setFilterValue(undefined)
+    }
+  }, [column, shouldClearAllValue])
+
+  const handleValueChange = (value: string) => {
+    column?.setFilterValue(value === ALL_FILTER_VALUE ? undefined : [value])
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant='outline' size='sm' className='h-8 border-dashed' />
+        }
+      >
+        <PlusCircledIcon className='size-4' />
+        {title}
+        {selectedOption != null && (
+          <>
+            <Separator orientation='vertical' className='mx-2 h-4' />
+            <Badge variant='secondary' className='rounded-sm px-1 font-normal'>
+              {t(selectedOption.label)}
+            </Badge>
+          </>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='start' className='w-48'>
+        <DropdownMenuRadioGroup
+          value={selectedValue ?? ALL_FILTER_VALUE}
+          onValueChange={handleValueChange}
+        >
+          {optionsWithAll.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.iconNode ? (
+                <span className='text-muted-foreground flex size-4 items-center justify-center'>
+                  {option.iconNode}
+                </span>
+              ) : option.icon ? (
+                <option.icon className='text-muted-foreground size-4' />
+              ) : null}
+              <span className='min-w-0 flex-1 truncate' title={t(option.label)}>
+                {t(option.label)}
+              </span>
+              {typeof option.count === 'number' && (
+                <span className='text-muted-foreground me-4 font-mono text-xs'>
+                  {option.count}
+                </span>
+              )}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export const DataTableFacetedFilter = React.memo(
   DataTableFacetedFilterInner
 ) as typeof DataTableFacetedFilterInner
+
+const ALL_FILTER_VALUE = 'all'
+const SIMPLE_SINGLE_SELECT_OPTION_LIMIT = 7
+
+function shouldUseSimpleSingleSelect(
+  options: DataTableFacetedFilterProps<unknown, unknown>['options']
+) {
+  return options.length <= SIMPLE_SINGLE_SELECT_OPTION_LIMIT
+}
+
+function getSingleSelectedValue(selectedValues: Set<string>): string | undefined {
+  const [selectedValue] = Array.from(selectedValues)
+  return selectedValue === ALL_FILTER_VALUE ? undefined : selectedValue
+}
+
+function getOptionsWithAll(
+  options: DataTableFacetedFilterProps<unknown, unknown>['options']
+) {
+  if (options.some((option) => option.value === ALL_FILTER_VALUE)) {
+    return options
+  }
+
+  return [{ label: 'All', value: ALL_FILTER_VALUE }, ...options]
+}
 
 function getNextSelectedValues(
   selectedValues: Set<string>,
