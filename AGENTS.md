@@ -85,6 +85,7 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
   - Use `commonGroupCol`, `commonKeyCol` from `model/main.go` for reserved-word columns like `group` and `key`.
   - Use `commonTrueVal`/`commonFalseVal` for boolean values.
   - Use `common.UsingMainDatabase(...)` for primary database branches and `common.UsingLogDatabase(...)` for log database branches.
+- For row-level locks in GORM v2, use `model.lockForUpdate(tx)` instead of `tx.Set("gorm:query_option", "FOR UPDATE")`. The legacy `gorm:query_option` form is ignored by GORM v2 and does not lock rows; `lockForUpdate` emits `FOR UPDATE` for MySQL/PostgreSQL and safely skips it on SQLite.
 - Do not use database-specific features without cross-DB fallback, including MySQL-only functions, PostgreSQL-only operators, SQLite-unsupported `ALTER COLUMN`, or database-specific JSON column types without a `TEXT` fallback.
 - Migrations must work on all three databases. For SQLite, use `ALTER TABLE ... ADD COLUMN` instead of `ALTER COLUMN` (see `model/main.go` for patterns).
 - Avoid GORM boolean default tags such as `gorm:"default:true"` when the default is a business rule already enforced by code. MySQL and PostgreSQL can normalize boolean defaults differently, causing GORM `AutoMigrate` to repeatedly issue `ALTER TABLE` on restart. Prefer setting these defaults in request/model normalization, hooks, constructors, or service logic; do not replace `default:true` with `default:1` unless the behavior is verified across SQLite, MySQL, and PostgreSQL.
