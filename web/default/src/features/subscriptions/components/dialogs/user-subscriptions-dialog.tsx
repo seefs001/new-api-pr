@@ -22,12 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DataTableRowActionMenu, StaticDataTable } from '@/components/data-table'
 import {
-  sideDrawerContentClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
+  DataTableRowActionMenu,
+  StaticDataTable,
+} from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { Button } from '@/components/ui/button'
@@ -44,13 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { formatQuota } from '@/lib/format'
 
@@ -232,190 +224,207 @@ export function UserSubscriptionsDialog(props: Props) {
 
   return (
     <>
-      <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-        <SheetContent className={sideDrawerContentClassName('sm:max-w-2xl')}>
-          <SheetHeader className={sideDrawerHeaderClassName()}>
-            <SheetTitle>{t('User Subscription Management')}</SheetTitle>
-            <SheetDescription>
-              {props.user?.username || '-'} (ID: {props.user?.id || '-'})
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className={sideDrawerFormClassName()}>
-            <div className='flex gap-2'>
-              <Select
-                items={plans.map((p) => ({
-                  value: String(p.plan.id),
-                  label: (
-                    <>
-                      {p.plan.title}($
+      <Dialog
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        title={t('User Subscription Management')}
+        description={`${props.user?.username || '-'} (ID: ${
+          props.user?.id || '-'
+        })`}
+        contentClassName='sm:max-w-4xl'
+        contentHeight='min(70vh, 680px)'
+        bodyClassName='space-y-4'
+      >
+        <div className='space-y-4'>
+          <div className='flex flex-col gap-2 sm:flex-row'>
+            <Select
+              items={plans.map((p) => ({
+                value: String(p.plan.id),
+                label: (
+                  <>
+                    {p.plan.title}($
+                    {Number(p.plan.price_amount || 0).toFixed(2)})
+                  </>
+                ),
+              }))}
+              value={selectedPlanId}
+              onValueChange={(v) => v !== null && setSelectedPlanId(v)}
+            >
+              <SelectTrigger className='w-full sm:flex-1'>
+                <SelectValue placeholder={t('Select subscription plan')} />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {plans.map((p) => (
+                    <SelectItem key={p.plan.id} value={String(p.plan.id)}>
+                      {p.plan.title} ($
                       {Number(p.plan.price_amount || 0).toFixed(2)})
-                    </>
-                  ),
-                }))}
-                value={selectedPlanId}
-                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
-              >
-                <SelectTrigger className='flex-1'>
-                  <SelectValue placeholder={t('Select subscription plan')} />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {plans.map((p) => (
-                      <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                        {p.plan.title} ($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={handleCreate}
-                disabled={creating || !selectedPlanId}
-              >
-                <Plus className='mr-1 h-4 w-4' />
-                {t('Add subscription')}
-              </Button>
-            </div>
-
-            <StaticDataTable
-              data={loading ? [] : subs}
-              getRowKey={(record) => record.subscription.id}
-              emptyClassName={loading ? 'py-8' : 'text-muted-foreground py-8'}
-              emptyContent={
-                loading ? t('Loading...') : t('No subscription records')
-              }
-              columns={[
-                {
-                  id: 'id',
-                  header: t('ID'),
-                  cell: (record) => <TableId value={record.subscription.id} />,
-                },
-                {
-                  id: 'plan',
-                  header: t('Plan'),
-                  cell: (record) => {
-                    const sub = record.subscription
-
-                    return (
-                      <div>
-                        <div className='font-medium'>
-                          {planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`}
-                        </div>
-                        <div className='text-muted-foreground text-sm'>
-                          {t('Source')}: {sub.source || '-'}
-                        </div>
-                      </div>
-                    )
-                  },
-                },
-                {
-                  id: 'status',
-                  header: t('Status'),
-                  cell: (record) => (
-                    <SubscriptionStatusBadge sub={record.subscription} t={t} />
-                  ),
-                },
-                {
-                  id: 'validity',
-                  header: t('Validity'),
-                  cell: (record) => {
-                    const sub = record.subscription
-
-                    return (
-                      <div className='text-sm'>
-                        <div>
-                          {t('Start')}: {formatTimestamp(sub.start_time)}
-                        </div>
-                        <div>
-                          {t('End')}: {formatTimestamp(sub.end_time)}
-                        </div>
-                      </div>
-                    )
-                  },
-                },
-                {
-                  id: 'quota',
-                  header: t('Total Quota'),
-                  cell: (record) => {
-                    const sub = record.subscription
-                    const total = Number(sub.amount_total || 0)
-                    const used = Number(sub.amount_used || 0)
-                    return total > 0
-                      ? `${formatQuota(used)}/${formatQuota(total)}`
-                      : t('Unlimited')
-                  },
-                },
-                {
-                  id: 'actions',
-                  header: t('Actions'),
-                  className: 'text-right',
-                  cellClassName: 'text-right',
-                  cell: (record) => {
-                    const sub = record.subscription
-                    const now = Date.now() / 1000
-                    const isExpired =
-                      (sub.end_time || 0) > 0 && sub.end_time < now
-                    const isActive = sub.status === 'active' && !isExpired
-
-                    return (
-                      <DataTableRowActionMenu ariaLabel={t('Actions')}>
-                        <DropdownMenuItem
-                          disabled={!isActive}
-                          onClick={() => {
-                            setAdvanceResetTime(true)
-                            setResetAction({
-                              planId: sub.plan_id,
-                              planTitle:
-                                planTitleMap.get(sub.plan_id) ||
-                                `#${sub.plan_id}`,
-                            })
-                          }}
-                        >
-                          {t('Reset quota')}
-                          <DropdownMenuShortcut>
-                            <RotateCcw size={16} />
-                          </DropdownMenuShortcut>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={!isActive}
-                          onClick={() =>
-                            setConfirmAction({
-                              type: 'invalidate',
-                              subId: sub.id,
-                            })
-                          }
-                        >
-                          {t('Invalidate')}
-                          <DropdownMenuShortcut>
-                            <Ban size={16} />
-                          </DropdownMenuShortcut>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant='destructive'
-                          onClick={() =>
-                            setConfirmAction({
-                              type: 'delete',
-                              subId: sub.id,
-                            })
-                          }
-                        >
-                          {t('Delete')}
-                          <DropdownMenuShortcut>
-                            <Trash2 size={16} />
-                          </DropdownMenuShortcut>
-                        </DropdownMenuItem>
-                      </DataTableRowActionMenu>
-                    )
-                  },
-                },
-              ]}
-            />
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button
+              className='w-full shrink-0 sm:w-auto'
+              onClick={handleCreate}
+              disabled={creating || !selectedPlanId}
+            >
+              <Plus className='mr-1 h-4 w-4' />
+              {t('Add subscription')}
+            </Button>
           </div>
-        </SheetContent>
-      </Sheet>
+
+          <StaticDataTable
+            className='overflow-x-auto'
+            tableClassName='min-w-[860px]'
+            data={loading ? [] : subs}
+            getRowKey={(record) => record.subscription.id}
+            emptyClassName={loading ? 'py-8' : 'text-muted-foreground py-8'}
+            emptyContent={
+              loading ? t('Loading...') : t('No subscription records')
+            }
+            columns={[
+              {
+                id: 'id',
+                header: t('ID'),
+                cell: (record) => <TableId value={record.subscription.id} />,
+              },
+              {
+                id: 'plan',
+                header: t('Plan'),
+                cell: (record) => {
+                  const sub = record.subscription
+
+                  return (
+                    <div>
+                      <div className='font-medium'>
+                        {planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`}
+                      </div>
+                      <div className='text-muted-foreground text-sm'>
+                        {t('Source')}: {sub.source || '-'}
+                      </div>
+                    </div>
+                  )
+                },
+              },
+              {
+                id: 'status',
+                header: t('Status'),
+                cell: (record) => (
+                  <SubscriptionStatusBadge sub={record.subscription} t={t} />
+                ),
+              },
+              {
+                id: 'validity',
+                header: t('Validity'),
+                cell: (record) => {
+                  const sub = record.subscription
+                  const now = Date.now() / 1000
+                  const isExpired =
+                    (sub.end_time || 0) > 0 && sub.end_time < now
+                  const isActive = sub.status === 'active' && !isExpired
+                  let nextReset = '-'
+                  if (isActive && (sub.next_reset_time || 0) > 0) {
+                    nextReset = formatTimestamp(sub.next_reset_time || 0)
+                  } else if (isActive) {
+                    nextReset = t('No Reset')
+                  }
+
+                  return (
+                    <div className='text-sm'>
+                      <div>
+                        {t('Start')}: {formatTimestamp(sub.start_time)}
+                      </div>
+                      <div>
+                        {t('End')}: {formatTimestamp(sub.end_time)}
+                      </div>
+                      <div>
+                        {t('Next reset')}: {nextReset}
+                      </div>
+                    </div>
+                  )
+                },
+              },
+              {
+                id: 'quota',
+                header: t('Total Quota'),
+                cell: (record) => {
+                  const sub = record.subscription
+                  const total = Number(sub.amount_total || 0)
+                  const used = Number(sub.amount_used || 0)
+                  return total > 0
+                    ? `${formatQuota(used)}/${formatQuota(total)}`
+                    : t('Unlimited')
+                },
+              },
+              {
+                id: 'actions',
+                header: t('Actions'),
+                className: 'text-right',
+                cellClassName: 'text-right',
+                cell: (record) => {
+                  const sub = record.subscription
+                  const now = Date.now() / 1000
+                  const isExpired =
+                    (sub.end_time || 0) > 0 && sub.end_time < now
+                  const isActive = sub.status === 'active' && !isExpired
+
+                  return (
+                    <DataTableRowActionMenu ariaLabel={t('Actions')}>
+                      <DropdownMenuItem
+                        disabled={!isActive}
+                        onClick={() => {
+                          setAdvanceResetTime(true)
+                          setResetAction({
+                            planId: sub.plan_id,
+                            planTitle:
+                              planTitleMap.get(sub.plan_id) ||
+                              `#${sub.plan_id}`,
+                          })
+                        }}
+                      >
+                        {t('Reset quota')}
+                        <DropdownMenuShortcut>
+                          <RotateCcw size={16} />
+                        </DropdownMenuShortcut>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={!isActive}
+                        onClick={() =>
+                          setConfirmAction({
+                            type: 'invalidate',
+                            subId: sub.id,
+                          })
+                        }
+                      >
+                        {t('Invalidate')}
+                        <DropdownMenuShortcut>
+                          <Ban size={16} />
+                        </DropdownMenuShortcut>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant='destructive'
+                        onClick={() =>
+                          setConfirmAction({
+                            type: 'delete',
+                            subId: sub.id,
+                          })
+                        }
+                      >
+                        {t('Delete')}
+                        <DropdownMenuShortcut>
+                          <Trash2 size={16} />
+                        </DropdownMenuShortcut>
+                      </DropdownMenuItem>
+                    </DataTableRowActionMenu>
+                  )
+                },
+              },
+            ]}
+          />
+        </div>
+      </Dialog>
 
       {confirmAction && (
         <ConfirmDialog

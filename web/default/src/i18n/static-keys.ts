@@ -294,6 +294,7 @@ export const STATIC_I18N_KEYS = [
   'Subscription Only',
   'No Active',
   'No Reset',
+  'Next reset',
   'Remaining',
   'Received',
   'Payment initiated',
