@@ -80,15 +80,22 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["model_price"] = modelPrice
 	other["user_group_ratio"] = userGroupRatio
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
-	if relayInfo.ReasoningEffort != "" {
-		other["reasoning_effort"] = relayInfo.ReasoningEffort
-	}
+	reasoningEffort := strings.TrimSpace(relayInfo.ReasoningEffort)
 	if storage, err := common.GetBodyStorage(ctx); err == nil {
 		if body, err := storage.Bytes(); err == nil {
+			if reasoningEffort == "" {
+				reasoningEffort = strings.TrimSpace(gjson.GetBytes(body, "reasoning_effort").String())
+				if reasoningEffort == "" {
+					reasoningEffort = strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String())
+				}
+			}
 			if serviceTier := strings.TrimSpace(gjson.GetBytes(body, "service_tier").String()); serviceTier != "" {
 				other["service_tier"] = serviceTier
 			}
 		}
+	}
+	if reasoningEffort != "" {
+		other["reasoning_effort"] = reasoningEffort
 	}
 	if relayInfo.IsModelMapped {
 		other["is_model_mapped"] = true
