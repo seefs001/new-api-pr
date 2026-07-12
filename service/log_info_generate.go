@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // attachQuotaSaturationToOther nests a quota saturation marker under
@@ -81,6 +82,13 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
 	if relayInfo.ReasoningEffort != "" {
 		other["reasoning_effort"] = relayInfo.ReasoningEffort
+	}
+	if storage, err := common.GetBodyStorage(ctx); err == nil {
+		if body, err := storage.Bytes(); err == nil {
+			if serviceTier := strings.TrimSpace(gjson.GetBytes(body, "service_tier").String()); serviceTier != "" {
+				other["service_tier"] = serviceTier
+			}
+		}
 	}
 	if relayInfo.IsModelMapped {
 		other["is_model_mapped"] = true

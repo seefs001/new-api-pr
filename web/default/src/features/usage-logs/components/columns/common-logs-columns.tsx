@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { GitBranch, Sparkles, KeyRound } from 'lucide-react'
+import { Brain, Gauge, GitBranch, Sparkles, KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -611,13 +611,36 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isDisplayableLogType(log.type)) return null
 
         const modelInfo = formatModelName(log)
+        const other = parseLogOther(log.other)
+        const reasoningEffort = other?.reasoning_effort
+        const serviceTier = other?.service_tier
 
         return (
-          <div className='flex w-fit flex-col gap-0.5'>
+          <div className='flex w-fit items-center gap-1'>
             <ModelBadge
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
             />
+            {reasoningEffort ? (
+              <span
+                title='思考强度'
+                aria-label={`思考强度: ${reasoningEffort}`}
+                className='text-muted-foreground inline-flex items-center gap-0.5 text-xs whitespace-nowrap'
+              >
+                <Brain className='size-3' aria-hidden='true' />
+                {reasoningEffort}
+              </span>
+            ) : null}
+            {serviceTier ? (
+              <span
+                title='服务层级'
+                aria-label={`服务层级: ${serviceTier}`}
+                className='text-muted-foreground inline-flex items-center gap-0.5 text-xs whitespace-nowrap'
+              >
+                <Gauge className='size-3' aria-hidden='true' />
+                {serviceTier}
+              </span>
+            ) : null}
           </div>
         )
       },
