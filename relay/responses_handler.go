@@ -92,6 +92,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
+		if openAIRequest, ok := convertedRequest.(*dto.GeneralOpenAIRequest); ok {
+			normalizeOpenAIStreamOptions(info, openAIRequest)
+		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 		jsonData, err := common.Marshal(convertedRequest)
 		if err != nil {

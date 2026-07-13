@@ -44,25 +44,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	includeUsage := true
-	// 判断用户是否需要返回使用情况
-	if request.StreamOptions != nil {
-		includeUsage = request.StreamOptions.IncludeUsage
-	}
-
-	// 如果不支持StreamOptions，将StreamOptions设置为nil
-	if !info.SupportStreamOptions || !lo.FromPtrOr(request.Stream, false) {
-		request.StreamOptions = nil
-	} else {
-		// 如果支持StreamOptions，且请求中没有设置StreamOptions，根据配置文件设置StreamOptions
-		if constant.ForceStreamOption {
-			request.StreamOptions = &dto.StreamOptions{
-				IncludeUsage: true,
-			}
-		}
-	}
-
-	info.ShouldIncludeUsage = includeUsage
+	normalizeOpenAIStreamOptions(info, request)
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
@@ -220,4 +202,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
 	return nil
+}
+
+func normalizeOpenAIStreamOptions(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
+	includeUsage := true
+	if request.StreamOptions != nil {
+		includeUsage = request.StreamOptions.IncludeUsage
+	}
+
+	if !info.SupportStreamOptions || !lo.FromPtrOr(request.Stream, false) {
+		request.StreamOptions = nil
+	} else if constant.ForceStreamOption {
+		request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+	}
+
+	info.ShouldIncludeUsage = includeUsage
 }
