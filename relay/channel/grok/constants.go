@@ -7,4 +7,5 @@ const (
 
 var ModelList = []string{
 	"grok-4.5",
+	"grok-composer-2.5-fast",
 }

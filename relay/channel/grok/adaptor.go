@@ -35,8 +35,8 @@ func (a *Adaptor) ConvertImageRequest(*gin.Context, *relaycommon.RelayInfo, dto.
 	return nil, errors.New("grok channel: endpoint not supported")
 }
 
-func (a *Adaptor) ConvertOpenAIRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeneralOpenAIRequest) (any, error) {
-	return nil, errors.New("grok channel: /v1/chat/completions endpoint not supported")
+func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	return (&openai.Adaptor{}).ConvertOpenAIRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(*gin.Context, int, dto.RerankRequest) (any, error) {
@@ -52,10 +52,19 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info == nil || info.RelayMode != relayconstant.RelayModeResponses {
-		return "", errors.New("grok channel: only /v1/responses is supported")
+	if info == nil {
+		return "", errors.New("grok channel: missing relay info")
 	}
-	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/responses", info.ChannelType), nil
+	path := ""
+	switch info.RelayMode {
+	case relayconstant.RelayModeChatCompletions:
+		path = "/v1/chat/completions"
+	case relayconstant.RelayModeResponses:
+		path = "/v1/responses"
+	default:
+		return "", errors.New("grok channel: only /v1/chat/completions and /v1/responses are supported")
+	}
+	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -72,10 +81,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	}
 
 	channel.SetupApiRequestHeader(info, c, req)
-	req.Set("Authorization", "Bearer "+accessToken)
-	req.Set("X-XAI-Token-Auth", "xai-grok-cli")
-	req.Set("X-Grok-Client-Version", DefaultCLIClientVersion)
-	req.Set("User-Agent", "xai-grok-workspace/"+DefaultCLIClientVersion)
+	setCLIIdentityHeaders(*req, accessToken)
 	req.Set("Content-Type", "application/json")
 	if info.IsStream {
 		req.Set("Accept", "text/event-stream")
@@ -85,13 +91,23 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
+func setCLIIdentityHeaders(header http.Header, accessToken string) {
+	header.Set("Authorization", "Bearer "+accessToken)
+	header.Set("X-XAI-Token-Auth", "xai-grok-cli")
+	header.Set("X-Grok-Client-Version", DefaultCLIClientVersion)
+	header.Set("User-Agent", "xai-grok-workspace/"+DefaultCLIClientVersion)
+}
+
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
-	if info == nil || info.RelayMode != relayconstant.RelayModeResponses {
+	if info == nil || (info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses) {
 		return nil, types.NewError(errors.New("grok channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
+	}
+	if info.RelayMode == relayconstant.RelayModeChatCompletions {
+		return (&openai.Adaptor{}).DoResponse(c, resp, info)
 	}
 	if info.IsStream {
 		return openai.OaiResponsesStreamHandler(c, info, resp)

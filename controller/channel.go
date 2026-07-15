@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/grok"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -651,7 +652,7 @@ func AddChannel(c *gin.Context) {
 		addChannelRequest.Mode != "single" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "Grok Subscription channels do not support batch creation",
+			"message": "SuperGrok Subscription channels do not support batch creation",
 		})
 		return
 	}
@@ -1018,7 +1019,7 @@ func UpdateChannel(c *gin.Context) {
 	if channel.Type == constant.ChannelTypeGrok && channel.ChannelInfo.IsMultiKey {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "Grok Subscription channels do not support multi-key mode",
+			"message": "SuperGrok Subscription channels do not support multi-key mode",
 		})
 		return
 	}
@@ -1246,7 +1247,9 @@ func FetchModels(c *gin.Context) {
 
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
-	key = strings.Split(key, "\n")[0]
+	if req.Type != constant.ChannelTypeGrok {
+		key = strings.Split(key, "\n")[0]
+	}
 
 	if req.Type == constant.ChannelTypeOllama {
 		models, err := ollama.FetchOllamaModels(baseURL, key)
@@ -1284,6 +1287,27 @@ func FetchModels(c *gin.Context) {
 			"success": true,
 			"data":    models,
 		})
+		return
+	}
+
+	if req.Type == constant.ChannelTypeGrok {
+		credential, err := dto.ParseGrokCredential(key)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+		defer cancel()
+		models, status, err := grok.FetchModelIDs(ctx, service.GetHttpClient(), baseURL, credential.AccessToken)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if status < http.StatusOK || status >= http.StatusMultipleChoices {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": fmt.Sprintf("Failed to fetch models: status code %d", status)})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": models})
 		return
 	}
 

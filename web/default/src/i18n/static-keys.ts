@@ -62,7 +62,6 @@ export const STATIC_I18N_KEYS = [
   'All Types',
   'Chat',
   'Response',
-  'Grok Subscription',
   'Paste Grok credential JSON (access_token / refresh_token)',
   'Anthropic',
   'Gemini',

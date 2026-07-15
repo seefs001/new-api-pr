@@ -2135,7 +2135,6 @@
     "Grok channels use a JSON credential with access_token and refresh_token as the key.": "Grok 渠道使用包含 access_token 和 refresh_token 的 JSON 憑證作為金鑰。",
     "Grok credential must be a JSON object with access_token and refresh_token": "Grok 憑證必須是包含 access_token 和 refresh_token 的 JSON 物件",
     "Grok Settings": "Grok 設定",
-    "Grok Subscription": "Grok 訂閱",
     "Group": "分組",
     "Group & Quota": "分組與配額",
     "Group added. Click \"Save Settings\" to apply.": "組已新增。點擊「儲存設定」以套用。",

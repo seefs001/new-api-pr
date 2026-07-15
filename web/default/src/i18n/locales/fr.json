@@ -2135,7 +2135,6 @@
     "Grok channels use a JSON credential with access_token and refresh_token as the key.": "Les canaux Grok utilisent comme clé des identifiants JSON contenant access_token et refresh_token.",
     "Grok credential must be a JSON object with access_token and refresh_token": "Les identifiants Grok doivent être un objet JSON contenant access_token et refresh_token",
     "Grok Settings": "Paramètres Grok",
-    "Grok Subscription": "Abonnement Grok",
     "Group": "Groupe",
     "Group & Quota": "Groupe et Quota",
     "Group added. Click \"Save Settings\" to apply.": "Groupe ajouté. Cliquez sur \"Enregistrer les paramètres\" pour appliquer.",

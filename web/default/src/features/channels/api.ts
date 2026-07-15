@@ -84,6 +84,22 @@ export type GrokCredentialRefreshResponse = {
   }
 }
 
+export type GrokUsageWindow = {
+  status_code: number
+  data?: Record<string, unknown> | string
+  error?: string
+}
+
+export type GrokUsageResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    weekly: GrokUsageWindow
+    monthly: GrokUsageWindow
+    partial: boolean
+  }
+}
+
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
@@ -348,6 +364,16 @@ export async function getCodexUsage(
 ): Promise<CodexUsageResponse> {
   const res = await api.get(
     `/api/channel/${channelId}/codex/usage`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function getGrokUsage(
+  channelId: number
+): Promise<GrokUsageResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/grok/usage`,
     channelActionConfig({ disableDuplicate: true })
   )
   return res.data

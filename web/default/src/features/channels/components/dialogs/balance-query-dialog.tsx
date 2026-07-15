@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -28,13 +28,14 @@ import { IconBadge } from '@/components/ui/icon-badge'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
-import { getCodexUsage, updateChannelBalance } from '../../api'
+import { getCodexUsage, getGrokUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
   type CodexUsageDialogData,
 } from './codex-usage-dialog'
+import { GrokUsageDialog } from './grok-usage-dialog'
 
 type BalanceQueryDialogProps = {
   open: boolean
@@ -55,19 +56,31 @@ export function BalanceQueryDialog({
   )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
+  const [grokUsageResponse, setGrokUsageResponse] = useState<Awaited<
+    ReturnType<typeof getGrokUsage>
+  > | null>(null)
 
   const isCodex = currentRow?.type === 57
+  const isGrok = currentRow?.type === 59
 
-  const handleQueryCodexUsage = async () => {
+  const handleQueryAccountUsage = useCallback(async () => {
     const row = currentRow
     if (!row) return
     setIsQuerying(true)
     try {
-      const res = await getCodexUsage(row.id)
-      if (!res.success) {
-        throw new Error(res.message || t('Failed to fetch usage'))
+      if (row.type === 57) {
+        const res = await getCodexUsage(row.id)
+        if (!res.success) {
+          throw new Error(res.message || t('Failed to fetch usage'))
+        }
+        setCodexUsageResponse(res)
+      } else {
+        const res = await getGrokUsage(row.id)
+        if (!res.success) {
+          throw new Error(res.message || t('Failed to fetch usage'))
+        }
+        setGrokUsageResponse(res)
       }
-      setCodexUsageResponse(res)
     } catch (error: unknown) {
       toast.error(
         error instanceof Error ? error.message : t('Failed to fetch usage')
@@ -75,14 +88,13 @@ export function BalanceQueryDialog({
     } finally {
       setIsQuerying(false)
     }
-  }
+  }, [currentRow, t])
 
   useEffect(() => {
-    if (!isCodex) return
+    if (!isCodex && !isGrok) return
     if (!open) return
-    handleQueryCodexUsage()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isCodex])
+    void handleQueryAccountUsage()
+  }, [handleQueryAccountUsage, isCodex, isGrok, open])
 
   if (!currentRow) return null
 
@@ -125,6 +137,7 @@ export function BalanceQueryDialog({
     setBalance(null)
     setBalanceUpdatedTime(null)
     setCodexUsageResponse(null)
+    setGrokUsageResponse(null)
     onOpenChange(false)
   }
 
@@ -150,7 +163,23 @@ export function BalanceQueryDialog({
         channelName={currentRow.name}
         channelId={currentRow.id}
         response={codexUsageResponse}
-        onRefresh={handleQueryCodexUsage}
+        onRefresh={handleQueryAccountUsage}
+        isRefreshing={isQuerying}
+      />
+    )
+  }
+
+  if (isGrok) {
+    return (
+      <GrokUsageDialog
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) handleClose()
+        }}
+        channelName={currentRow.name}
+        channelId={currentRow.id}
+        response={grokUsageResponse}
+        onRefresh={handleQueryAccountUsage}
         isRefreshing={isQuerying}
       />
     )

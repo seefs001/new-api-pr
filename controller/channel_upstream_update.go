@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/grok"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
@@ -281,6 +282,37 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
 		if err != nil {
 			return nil, err
+		}
+		return normalizeModelNames(models), nil
+	}
+
+	if channel.Type == constant.ChannelTypeGrok {
+		credential, err := dto.ParseGrokCredential(strings.TrimSpace(channel.Key))
+		if err != nil {
+			return nil, err
+		}
+		client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+		if err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		models, status, err := grok.FetchModelIDs(ctx, client, baseURL, credential.AccessToken)
+		if err != nil {
+			return nil, err
+		}
+		if (status == http.StatusUnauthorized || status == http.StatusForbidden) && strings.TrimSpace(credential.RefreshToken) != "" {
+			refreshed, _, refreshErr := service.RefreshGrokChannelCredential(ctx, channel.Id, service.GrokCredentialRefreshOptions{ResetCaches: true})
+			if refreshErr != nil {
+				return nil, refreshErr
+			}
+			models, status, err = grok.FetchModelIDs(ctx, client, baseURL, refreshed.AccessToken)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if status < http.StatusOK || status >= http.StatusMultipleChoices {
+			return nil, fmt.Errorf("status code: %d", status)
 		}
 		return normalizeModelNames(models), nil
 	}

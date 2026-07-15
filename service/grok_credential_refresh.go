@@ -38,7 +38,7 @@ func refreshGrokChannelCredential(ctx context.Context, channelID int, opts GrokC
 		return nil, nil, errors.New("channel not found")
 	}
 	if ch.Type != constant.ChannelTypeGrok {
-		return nil, nil, errors.New("channel type is not Grok Subscription")
+		return nil, nil, errors.New("channel type is not SuperGrok Subscription")
 	}
 
 	storedKey := ch.Key

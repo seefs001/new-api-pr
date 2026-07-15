@@ -180,7 +180,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "ChatGPT Subscription (Codex)",
 	ChannelTypeAdvancedCustom: "Advanced Custom",
-	ChannelTypeGrok:           "Grok Subscription",
+	ChannelTypeGrok:           "SuperGrok Subscription",
 }
 
 func GetChannelTypeName(channelType int) string {

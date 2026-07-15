@@ -2135,7 +2135,6 @@
     "Grok channels use a JSON credential with access_token and refresh_token as the key.": "Grok channels use a JSON credential with access_token and refresh_token as the key.",
     "Grok credential must be a JSON object with access_token and refresh_token": "Grok credential must be a JSON object with access_token and refresh_token",
     "Grok Settings": "Grok Settings",
-    "Grok Subscription": "Grok Subscription",
     "Group": "Group",
     "Group & Quota": "Group & Quota",
     "Group added. Click \"Save Settings\" to apply.": "Group added. Click \"Save Settings\" to apply.",

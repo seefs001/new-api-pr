@@ -2135,7 +2135,6 @@
     "Grok channels use a JSON credential with access_token and refresh_token as the key.": "Kênh Grok dùng thông tin xác thực JSON có access_token và refresh_token làm khóa.",
     "Grok credential must be a JSON object with access_token and refresh_token": "Thông tin xác thực Grok phải là đối tượng JSON có access_token và refresh_token",
     "Grok Settings": "Cài đặt Grok",
-    "Grok Subscription": "Gói đăng ký Grok",
     "Group": "Nhóm",
     "Group & Quota": "Nhóm & Hạn mức",
     "Group added. Click \"Save Settings\" to apply.": "Nhóm đã được thêm. Nhấp vào \"Lưu Cài đặt\" để áp dụng.",
