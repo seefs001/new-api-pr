@@ -520,6 +520,22 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	if channel.Type == constant.ChannelTypeGrok {
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if isAdd || trimmedKey != "" {
+			credential, err := dto.ParseGrokCredential(trimmedKey)
+			if err != nil {
+				return fmt.Errorf("Grok key must be a valid JSON object")
+			}
+			if strings.TrimSpace(credential.AccessToken) == "" {
+				return fmt.Errorf("Grok key JSON must include access_token")
+			}
+			if strings.TrimSpace(credential.RefreshToken) == "" {
+				return fmt.Errorf("Grok key JSON must include refresh_token")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -548,6 +564,35 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 			"last_refresh": oauthKey.LastRefresh,
 			"account_id":   oauthKey.AccountID,
 			"email":        oauthKey.Email,
+			"channel_id":   ch.Id,
+			"channel_type": ch.Type,
+			"channel_name": ch.Name,
+		},
+	})
+}
+
+func RefreshGrokChannelCredential(c *gin.Context) {
+	channelID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+
+	credential, ch, err := service.RefreshGrokChannelCredential(ctx, channelID, service.GrokCredentialRefreshOptions{ResetCaches: true})
+	if err != nil {
+		common.SysError("failed to refresh grok channel credential: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "刷新凭证失败，请稍后重试"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "refreshed",
+		"data": gin.H{
+			"expires_at":   credential.Expired,
 			"channel_id":   ch.Id,
 			"channel_type": ch.Type,
 			"channel_name": ch.Name,
@@ -599,6 +644,15 @@ func AddChannel(c *gin.Context) {
 	err := c.ShouldBindJSON(&addChannelRequest)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if addChannelRequest.Channel != nil &&
+		addChannelRequest.Channel.Type == constant.ChannelTypeGrok &&
+		addChannelRequest.Mode != "single" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "Grok Subscription channels do not support batch creation",
+		})
 		return
 	}
 
@@ -954,6 +1008,20 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+	if channel.Type == constant.ChannelTypeGrok && originChannel.Type != constant.ChannelTypeGrok && strings.TrimSpace(channel.Key) == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "Grok key must be provided when changing the channel type",
+		})
+		return
+	}
+	if channel.Type == constant.ChannelTypeGrok && channel.ChannelInfo.IsMultiKey {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "Grok Subscription channels do not support multi-key mode",
+		})
+		return
+	}
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {

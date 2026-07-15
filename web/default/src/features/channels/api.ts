@@ -73,6 +73,17 @@ export type CodexCredentialRefreshResponse = {
   }
 }
 
+export type GrokCredentialRefreshResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    expires_at?: string
+    channel_id?: number
+    channel_type?: number
+    channel_name?: string
+  }
+}
+
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
@@ -315,6 +326,17 @@ export async function refreshCodexCredential(
 ): Promise<CodexCredentialRefreshResponse> {
   const res = await api.post(
     `/api/channel/${channelId}/codex/refresh`,
+    {},
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function refreshGrokCredential(
+  channelId: number
+): Promise<GrokCredentialRefreshResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/grok/refresh`,
     {},
     channelActionConfig()
   )

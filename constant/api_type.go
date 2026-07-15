@@ -37,5 +37,6 @@ const (
 	APITypeReplicate
 	APITypeCodex
 	APITypeAdvancedCustom
+	APITypeGrok
 	APITypeDummy // this one is only for count, do not add any channel after this
 )

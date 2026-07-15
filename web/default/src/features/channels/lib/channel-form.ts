@@ -103,6 +103,22 @@ function isCodexCredential(value: string | undefined): boolean {
   }
 }
 
+function isGrokCredential(value: string | undefined): boolean {
+  try {
+    const parsed = parseOptionalJson(value)
+    if (parsed === undefined) return true
+    return (
+      isJsonObjectValue(parsed) &&
+      typeof parsed.access_token === 'string' &&
+      parsed.access_token.trim().length > 0 &&
+      typeof parsed.refresh_token === 'string' &&
+      parsed.refresh_token.trim().length > 0
+    )
+  } catch {
+    return false
+  }
+}
+
 function isVertexJsonKey(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -261,6 +277,23 @@ export const channelFormSchema = z
           ctx,
           'key',
           'Codex credential must be a JSON object with access_token and account_id'
+        )
+      }
+    }
+
+    if (data.type === 59) {
+      if (data.multi_key_mode && data.multi_key_mode !== 'single') {
+        addRequiredIssue(
+          ctx,
+          'multi_key_mode',
+          'Grok channels do not support batch creation'
+        )
+      }
+      if (data.key?.trim() && !isGrokCredential(data.key)) {
+        addRequiredIssue(
+          ctx,
+          'key',
+          'Grok credential must be a JSON object with access_token and refresh_token'
         )
       }
     }
