@@ -177,7 +177,33 @@ func normalizeXAIResponsesInput(raw json.RawMessage) (json.RawMessage, error) {
 			return nil, fmt.Errorf("xAI responses compatibility: invalid input item: %w", err)
 		}
 		itemType, err := rawJSONString(item["type"])
-		if err != nil || itemType != "function_call_output" || common2.GetJsonType(item["output"]) != "array" {
+		if err != nil {
+			normalized = append(normalized, rawItem)
+			continue
+		}
+		if itemType == "function_call" {
+			namespace, _ := rawJSONString(item["namespace"])
+			if namespace != "" {
+				name, err := rawJSONString(item["name"])
+				if err != nil || strings.TrimSpace(name) == "" {
+					return nil, fmt.Errorf("xAI responses compatibility: function call name in namespace %q is required", namespace)
+				}
+				flatName := strings.TrimRight(namespace, "_") + "__" + strings.TrimLeft(name, "_")
+				encodedName, err := common2.Marshal(flatName)
+				if err != nil {
+					return nil, err
+				}
+				item["name"] = encodedName
+			}
+			delete(item, "namespace")
+			encodedItem, err := common2.Marshal(item)
+			if err != nil {
+				return nil, err
+			}
+			normalized = append(normalized, encodedItem)
+			continue
+		}
+		if itemType != "function_call_output" || common2.GetJsonType(item["output"]) != "array" {
 			normalized = append(normalized, rawItem)
 			continue
 		}

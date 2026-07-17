@@ -21,6 +21,7 @@ func TestPrepareXAIResponsesRequestNormalizesCodexCompatibility(t *testing.T) {
 			{"type":"web_search","external_web_access":true}
 		]`),
 		Input: []byte(`[
+			{"type":"function_call","namespace":"mcp__browser","name":"navigate","arguments":"{\"url\":\"https://example.com\"}","call_id":"call_namespace"},
 			{"type":"function_call_output","call_id":"call_image","output":[
 				{"type":"input_text","text":"tool image"},
 				{"type":"input_image","image_url":"data:image/png;base64,abc","detail":"auto"}
@@ -41,6 +42,7 @@ func TestPrepareXAIResponsesRequestNormalizesCodexCompatibility(t *testing.T) {
 		{"type":"x_search"}
 	]`, string(got.Tools))
 	require.JSONEq(t, `[
+		{"type":"function_call","name":"mcp__browser__navigate","arguments":"{\"url\":\"https://example.com\"}","call_id":"call_namespace"},
 		{"type":"function_call_output","call_id":"call_image","output":"tool image"},
 		{"type":"function_call_output","call_id":"call_source","output":"(see attached image)"},
 		{"type":"function_call_output","call_id":"call_text","output":"already valid"},
