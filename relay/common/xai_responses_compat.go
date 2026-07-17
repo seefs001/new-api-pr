@@ -17,6 +17,13 @@ const xaiResponsesToolAliasesContextKey = "xai_responses_tool_aliases"
 type xaiResponsesToolAlias struct {
 	Namespace string
 	Name      string
+	Custom    bool
+}
+
+type xaiResponsesCompatibilityState struct {
+	Aliases       map[string]xaiResponsesToolAlias
+	CustomCallIDs map[string]struct{}
+	CustomItemIDs map[string]struct{}
 }
 
 func PrepareXAIResponsesRequest(c *gin.Context, info *RelayInfo, request dto.OpenAIResponsesRequest) (dto.OpenAIResponsesRequest, error) {
@@ -28,28 +35,43 @@ func PrepareXAIResponsesRequest(c *gin.Context, info *RelayInfo, request dto.Ope
 	if err != nil {
 		return request, err
 	}
+	toolChoice, err := normalizeXAIResponsesToolChoice(request.ToolChoice)
+	if err != nil {
+		return request, err
+	}
 	input, err := normalizeXAIResponsesInput(request.Input)
 	if err != nil {
 		return request, err
 	}
 	request.Tools = tools
+	request.ToolChoice = toolChoice
 	request.Input = input
+	var normalizedTools []json.RawMessage
+	if len(tools) == 0 || common2.Unmarshal(tools, &normalizedTools) != nil || len(normalizedTools) == 0 {
+		request.Tools = nil
+		request.ToolChoice = nil
+		request.ParallelToolCalls = nil
+	}
 	if c != nil {
-		c.Set(xaiResponsesToolAliasesContextKey, aliases)
+		c.Set(xaiResponsesToolAliasesContextKey, &xaiResponsesCompatibilityState{
+			Aliases:       aliases,
+			CustomCallIDs: make(map[string]struct{}),
+			CustomItemIDs: make(map[string]struct{}),
+		})
 	}
 	return request, nil
 }
 
 func NormalizeXAIResponsesResponse(c *gin.Context, info *RelayInfo, data []byte) ([]byte, error) {
-	if !isXAIResponsesCompatibilityChannel(info) || c == nil || !bytes.Contains(data, []byte(`"function_call"`)) {
+	if !isXAIResponsesCompatibilityChannel(info) || c == nil || !bytes.Contains(data, []byte("function_call")) {
 		return data, nil
 	}
 	value, exists := c.Get(xaiResponsesToolAliasesContextKey)
 	if !exists {
 		return data, nil
 	}
-	aliases, ok := value.(map[string]xaiResponsesToolAlias)
-	if !ok || len(aliases) == 0 {
+	state, ok := value.(*xaiResponsesCompatibilityState)
+	if !ok || len(state.Aliases) == 0 {
 		return data, nil
 	}
 
@@ -57,7 +79,7 @@ func NormalizeXAIResponsesResponse(c *gin.Context, info *RelayInfo, data []byte)
 	if err := common2.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("xAI responses compatibility: invalid response: %w", err)
 	}
-	if !restoreXAIResponsesToolNames(response, aliases) {
+	if !restoreXAIResponsesToolNames(response, state) {
 		return data, nil
 	}
 	return common2.Marshal(response)
@@ -134,13 +156,40 @@ func normalizeXAIResponsesTools(raw json.RawMessage) (json.RawMessage, map[strin
 			}
 			functionNames[name] = struct{}{}
 			normalized = append(normalized, tool)
+		case "custom":
+			name, err := rawJSONString(tool["name"])
+			if err != nil || strings.TrimSpace(name) == "" {
+				return nil, nil, fmt.Errorf("xAI responses compatibility: custom tool name is required")
+			}
+			if _, exists := functionNames[name]; exists {
+				return nil, nil, fmt.Errorf("xAI responses compatibility: duplicate function name %q", name)
+			}
+			functionNames[name] = struct{}{}
+			aliases[name] = xaiResponsesToolAlias{Name: name, Custom: true}
+			description, _ := rawJSONString(tool["description"])
+			const freeformInstruction = "This is a FREEFORM tool, so do not wrap the patch in JSON."
+			if strings.Contains(description, freeformInstruction) {
+				description = strings.Replace(description, freeformInstruction, "Pass the complete freeform input in the input field.", 1)
+			} else {
+				description = strings.TrimSpace(description) + " Pass the complete freeform input in the input field."
+			}
+			encodedDescription, err := common2.Marshal(strings.TrimSpace(description))
+			if err != nil {
+				return nil, nil, err
+			}
+			tool["type"] = json.RawMessage(`"function"`)
+			tool["description"] = encodedDescription
+			tool["parameters"] = json.RawMessage(`{"type":"object","properties":{"input":{"type":"string","description":"Complete raw input for this tool."}},"required":["input"],"additionalProperties":false}`)
+			delete(tool, "format")
+			delete(tool, "strict")
+			normalized = append(normalized, tool)
 		case "web_search":
 			hasWebSearch = true
 			normalized = append(normalized, tool)
 		case "x_search":
 			hasXSearch = true
 			normalized = append(normalized, tool)
-		default:
+		case "image_generation", "collections_search", "file_search", "code_execution", "code_interpreter", "mcp", "shell":
 			normalized = append(normalized, tool)
 		}
 	}
@@ -153,6 +202,65 @@ func normalizeXAIResponsesTools(raw json.RawMessage) (json.RawMessage, map[strin
 		return nil, nil, err
 	}
 	return encoded, aliases, nil
+}
+
+func normalizeXAIResponsesToolChoice(raw json.RawMessage) (json.RawMessage, error) {
+	if len(raw) == 0 || common2.GetJsonType(raw) != "object" {
+		return raw, nil
+	}
+
+	var choice map[string]json.RawMessage
+	if err := common2.Unmarshal(raw, &choice); err != nil {
+		return nil, fmt.Errorf("xAI responses compatibility: invalid tool_choice: %w", err)
+	}
+	choiceType, _ := rawJSONString(choice["type"])
+	if choiceType == "allowed_tools" && common2.GetJsonType(choice["tools"]) == "array" {
+		var tools []map[string]json.RawMessage
+		if err := common2.Unmarshal(choice["tools"], &tools); err != nil {
+			return nil, fmt.Errorf("xAI responses compatibility: invalid allowed tools: %w", err)
+		}
+		for _, tool := range tools {
+			if err := normalizeXAIResponsesToolChoiceEntry(tool); err != nil {
+				return nil, err
+			}
+		}
+		encodedTools, err := common2.Marshal(tools)
+		if err != nil {
+			return nil, err
+		}
+		choice["tools"] = encodedTools
+	} else if err := normalizeXAIResponsesToolChoiceEntry(choice); err != nil {
+		return nil, err
+	}
+	return common2.Marshal(choice)
+}
+
+func normalizeXAIResponsesToolChoiceEntry(choice map[string]json.RawMessage) error {
+	choiceType, _ := rawJSONString(choice["type"])
+	if choiceType == "custom" {
+		choice["type"] = json.RawMessage(`"function"`)
+		choiceType = "function"
+	}
+	if choiceType != "function" {
+		return nil
+	}
+
+	namespace, _ := rawJSONString(choice["namespace"])
+	if namespace == "" {
+		return nil
+	}
+	name, err := rawJSONString(choice["name"])
+	if err != nil || strings.TrimSpace(name) == "" {
+		return fmt.Errorf("xAI responses compatibility: function tool choice name in namespace %q is required", namespace)
+	}
+	flatName := strings.TrimRight(namespace, "_") + "__" + strings.TrimLeft(name, "_")
+	encodedName, err := common2.Marshal(flatName)
+	if err != nil {
+		return err
+	}
+	choice["name"] = encodedName
+	delete(choice, "namespace")
+	return nil
 }
 
 func normalizeXAIResponsesInput(raw json.RawMessage) (json.RawMessage, error) {
@@ -181,6 +289,54 @@ func normalizeXAIResponsesInput(raw json.RawMessage) (json.RawMessage, error) {
 			normalized = append(normalized, rawItem)
 			continue
 		}
+		if itemType == "custom_tool_call" {
+			callID, callIDErr := rawJSONString(item["call_id"])
+			name, nameErr := rawJSONString(item["name"])
+			input, inputErr := rawJSONString(item["input"])
+			if callIDErr != nil || strings.TrimSpace(callID) == "" || nameErr != nil || strings.TrimSpace(name) == "" || inputErr != nil {
+				return nil, fmt.Errorf("xAI responses compatibility: invalid custom tool call")
+			}
+			arguments, err := common2.Marshal(struct {
+				Input string `json:"input"`
+			}{Input: input})
+			if err != nil {
+				return nil, err
+			}
+			encodedArguments, err := common2.Marshal(string(arguments))
+			if err != nil {
+				return nil, err
+			}
+			encodedCallID, err := common2.Marshal(callID)
+			if err != nil {
+				return nil, err
+			}
+			encodedName, err := common2.Marshal(name)
+			if err != nil {
+				return nil, err
+			}
+			encodedItem, err := common2.Marshal(map[string]json.RawMessage{
+				"type":      json.RawMessage(`"function_call"`),
+				"call_id":   encodedCallID,
+				"name":      encodedName,
+				"arguments": encodedArguments,
+			})
+			if err != nil {
+				return nil, err
+			}
+			normalized = append(normalized, encodedItem)
+			continue
+		}
+		if itemType == "custom_tool_call_output" {
+			callID, err := rawJSONString(item["call_id"])
+			if err != nil || strings.TrimSpace(callID) == "" {
+				return nil, fmt.Errorf("xAI responses compatibility: invalid custom tool call output")
+			}
+			item["type"] = json.RawMessage(`"function_call_output"`)
+			delete(item, "id")
+			delete(item, "name")
+			delete(item, "internal_chat_message_metadata_passthrough")
+			itemType = "function_call_output"
+		}
 		if itemType == "function_call" {
 			namespace, _ := rawJSONString(item["namespace"])
 			if namespace != "" {
@@ -204,7 +360,15 @@ func normalizeXAIResponsesInput(raw json.RawMessage) (json.RawMessage, error) {
 			continue
 		}
 		if itemType != "function_call_output" || common2.GetJsonType(item["output"]) != "array" {
-			normalized = append(normalized, rawItem)
+			if itemType == "function_call_output" {
+				encodedItem, err := common2.Marshal(item)
+				if err != nil {
+					return nil, err
+				}
+				normalized = append(normalized, encodedItem)
+			} else {
+				normalized = append(normalized, rawItem)
+			}
 			continue
 		}
 
@@ -328,26 +492,72 @@ func rawJSONString(raw json.RawMessage) (string, error) {
 	return value, nil
 }
 
-func restoreXAIResponsesToolNames(node any, aliases map[string]xaiResponsesToolAlias) bool {
+func restoreXAIResponsesToolNames(node any, state *xaiResponsesCompatibilityState) bool {
 	changed := false
 	switch value := node.(type) {
 	case []any:
 		for _, item := range value {
-			changed = restoreXAIResponsesToolNames(item, aliases) || changed
+			changed = restoreXAIResponsesToolNames(item, state) || changed
 		}
 	case map[string]any:
+		for _, child := range value {
+			changed = restoreXAIResponsesToolNames(child, state) || changed
+		}
 		if value["type"] == "function_call" {
 			if name, ok := value["name"].(string); ok {
-				if alias, exists := aliases[name]; exists {
-					value["namespace"] = alias.Namespace
-					value["name"] = alias.Name
+				if alias, exists := state.Aliases[name]; exists {
+					if alias.Custom {
+						arguments, _ := value["arguments"].(string)
+						value["type"] = "custom_tool_call"
+						value["name"] = alias.Name
+						value["input"] = xaiResponsesCustomToolInput(arguments)
+						delete(value, "arguments")
+						delete(value, "namespace")
+						if callID, ok := value["call_id"].(string); ok && callID != "" {
+							state.CustomCallIDs[callID] = struct{}{}
+						}
+						if itemID, ok := value["id"].(string); ok && itemID != "" {
+							state.CustomItemIDs[itemID] = struct{}{}
+						}
+					} else {
+						value["namespace"] = alias.Namespace
+						value["name"] = alias.Name
+					}
 					changed = true
 				}
 			}
 		}
-		for _, child := range value {
-			changed = restoreXAIResponsesToolNames(child, aliases) || changed
+		eventType, _ := value["type"].(string)
+		if eventType == "response.function_call_arguments.delta" || eventType == "response.function_call_arguments.done" {
+			itemID, _ := value["item_id"].(string)
+			callID, _ := value["call_id"].(string)
+			_, customItem := state.CustomItemIDs[itemID]
+			_, customCall := state.CustomCallIDs[callID]
+			if customItem || customCall {
+				if eventType == "response.function_call_arguments.delta" {
+					value["type"] = "response.custom_tool_call_input.delta"
+				} else {
+					value["type"] = "response.custom_tool_call_input.done"
+					arguments, _ := value["arguments"].(string)
+					value["input"] = xaiResponsesCustomToolInput(arguments)
+					delete(value, "arguments")
+				}
+				changed = true
+			}
 		}
 	}
 	return changed
+}
+
+func xaiResponsesCustomToolInput(arguments string) string {
+	var object map[string]json.RawMessage
+	if common2.Unmarshal([]byte(arguments), &object) == nil {
+		if input, err := rawJSONString(object["input"]); err == nil {
+			return input
+		}
+		if patch, err := rawJSONString(object["patch"]); err == nil {
+			return patch
+		}
+	}
+	return arguments
 }
