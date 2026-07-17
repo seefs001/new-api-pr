@@ -104,7 +104,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if request.Model == "" && info != nil {
 		request.Model = info.UpstreamModelName
 	}
-	return request, nil
+	return relaycommon.PrepareXAIResponsesRequest(c, info, request)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

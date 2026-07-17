@@ -48,7 +48,15 @@ func (a *Adaptor) ConvertEmbeddingRequest(*gin.Context, *relaycommon.RelayInfo, 
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return (&openai.Adaptor{}).ConvertOpenAIResponsesRequest(c, info, request)
+	converted, err := (&openai.Adaptor{}).ConvertOpenAIResponsesRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	}
+	responsesRequest, ok := converted.(dto.OpenAIResponsesRequest)
+	if !ok {
+		return nil, errors.New("grok channel: invalid responses request")
+	}
+	return relaycommon.PrepareXAIResponsesRequest(c, info, responsesRequest)
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {

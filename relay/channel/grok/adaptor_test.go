@@ -28,3 +28,15 @@ func TestConvertOpenAIRequestPreservesStreamUsageOption(t *testing.T) {
 	require.NotNil(t, request.StreamOptions)
 	require.True(t, request.StreamOptions.IncludeUsage)
 }
+
+func TestConvertOpenAIResponsesRequestAppliesXAICompatibility(t *testing.T) {
+	request := dto.OpenAIResponsesRequest{Tools: []byte(`[{"type":"web_search","external_web_access":true}]`)}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeGrok}}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, request)
+
+	require.NoError(t, err)
+	responsesRequest, ok := converted.(dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	require.JSONEq(t, `[{"type":"web_search"},{"type":"x_search"}]`, string(responsesRequest.Tools))
+}
