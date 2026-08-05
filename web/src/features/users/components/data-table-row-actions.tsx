@@ -75,6 +75,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
   const handleEdit = () => {
     setCurrentRow(user)
+    if (user.status === USER_STATUS.PENDING_CLAIM) {
+      setOpen('manage-invitation')
+      return
+    }
     setOpen('update')
   }
 
@@ -132,11 +136,48 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   const isDisabled = user.status === USER_STATUS.DISABLED
+  const isPendingClaim = user.status === USER_STATUS.PENDING_CLAIM
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
 
   if (isUserDeleted(user)) {
     return null
+  }
+
+  if (isPendingClaim) {
+    return (
+      <div className='-ml-1.5 flex items-center gap-1'>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={handleEdit}
+                aria-label={t('Manage invitation')}
+              />
+            }
+          >
+            <Pencil />
+          </TooltipTrigger>
+          <TooltipContent>{t('Manage invitation')}</TooltipContent>
+        </Tooltip>
+        <DataTableRowActionMenu
+          ariaLabel={t('Open menu')}
+          contentClassName='w-48'
+        >
+          <DropdownMenuItem
+            onClick={handleDelete}
+            className='text-destructive focus:text-destructive'
+          >
+            {t('Delete')}
+            <DropdownMenuShortcut>
+              <Trash2 size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DataTableRowActionMenu>
+      </div>
+    )
   }
 
   return (

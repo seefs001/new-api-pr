@@ -447,6 +447,9 @@ func AdminResetPasskey(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if rejectPendingClaimUser(c, user) {
+		return
+	}
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, user.Role) {
 		common.ApiErrorMsg(c, "no permission")

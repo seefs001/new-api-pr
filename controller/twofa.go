@@ -558,6 +558,9 @@ func AdminDisable2FA(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if rejectPendingClaimUser(c, targetUser) {
+		return
+	}
 
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, targetUser.Role) {

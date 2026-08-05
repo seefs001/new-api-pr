@@ -386,6 +386,16 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.topup_complete': 'Completed top-up order for the user',
   'user.reset_passkey': 'Reset the user passkey',
   'user.oauth_unbind': 'Removed an OAuth binding for the user',
+  'user.invitation_create':
+    'Created invitation {{invitation_id}} for pending user {{target_user_id}}',
+  'user.invitation_update':
+    'Updated invitation {{invitation_id}} for pending user {{target_user_id}}',
+  'user.invitation_reissue':
+    'Reissued invitation {{invitation_id}} for pending user {{target_user_id}}',
+  'user.invitation_revoke':
+    'Revoked invitation {{invitation_id}} for pending user {{target_user_id}}',
+  'user.invitation_claim': 'Claimed invitation {{invitation_id}}',
+  'user.invitation_claim_failed': 'Rejected invitation claim',
   // System settings
   'option.update': 'Updated system setting {{key}}',
   'option.payment_compliance': 'Confirmed payment compliance',

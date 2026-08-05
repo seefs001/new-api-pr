@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
 
+import { UserInvitationDrawer } from './components/user-invitation-drawer'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
@@ -46,6 +47,13 @@ function UsersContent() {
         open={open === 'create' || open === 'update'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         currentRow={open === 'update' ? currentRow || undefined : undefined}
+      />
+      <UserInvitationDrawer
+        open={open === 'invite' || open === 'manage-invitation'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        currentRow={
+          open === 'manage-invitation' ? currentRow || undefined : undefined
+        }
       />
       <UsersDeleteDialog />
     </>

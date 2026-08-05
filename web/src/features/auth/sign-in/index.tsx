@@ -50,6 +50,15 @@ export function SignIn() {
                 .
               </p>
             )}
+          {status?.password_login_enabled !== false && (
+            <Link
+              to='/invite/$token'
+              params={{ token: 'manual' }}
+              className='text-muted-foreground hover:text-primary block text-left text-sm font-medium underline underline-offset-4'
+            >
+              {t('Enter your invitation code')}
+            </Link>
+          )}
         </div>
 
         <UserAuthForm redirectTo={redirect} />

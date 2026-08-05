@@ -332,6 +332,9 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
+	for _, user := range users {
+		redactPendingClaimIdentity(user)
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
 
@@ -362,10 +365,22 @@ func SearchUsers(c *gin.Context) {
 		return
 	}
 
+	for _, user := range users {
+		redactPendingClaimIdentity(user)
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func redactPendingClaimIdentity(user *model.User) {
+	if user == nil || user.Status != common.UserStatusPendingClaim {
+		return
+	}
+	user.Username = ""
+	user.DisplayName = ""
+	user.AffCode = ""
 }
 
 func canManageTargetRole(myRole int, targetRole int) bool {
@@ -388,6 +403,7 @@ func GetUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
 		return
 	}
+	redactPendingClaimIdentity(user)
 	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -693,6 +709,9 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if rejectPendingClaimUser(c, originUser) {
+		return
+	}
 	if updatedUser.Role != common.RoleGuestUser && updatedUser.Role != originUser.Role {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -762,6 +781,9 @@ func AdminClearUserBinding(c *gin.Context) {
 	user, err := model.GetUserById(id, false)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if rejectPendingClaimUser(c, user) {
 		return
 	}
 
@@ -970,13 +992,21 @@ func DeleteUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
-	err = model.HardDeleteUserById(id)
+	if originUser.Status == common.UserStatusPendingClaim {
+		err = model.DeletePendingInvitedUser(id)
+	} else {
+		err = model.HardDeleteUserById(id)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	auditUsername := originUser.Username
+	if originUser.Status == common.UserStatusPendingClaim {
+		auditUsername = fmt.Sprintf("pending user #%d", originUser.Id)
+	}
 	recordManageAuditFor(c, originUser.Id, "user.delete", map[string]interface{}{
-		"username": originUser.Username,
+		"username": auditUsername,
 		"id":       originUser.Id,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -1106,6 +1136,10 @@ func ManageUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNotExists)
 		return
 	}
+	if user.Status == common.UserStatusPendingClaim && req.Action != "delete" {
+		common.ApiErrorMsg(c, "Pending users must be managed through their invitation")
+		return
+	}
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, user.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
@@ -1125,10 +1159,16 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
 			return
 		}
-		if err := user.Delete(); err != nil {
+		var deleteErr error
+		if user.Status == common.UserStatusPendingClaim {
+			deleteErr = model.DeletePendingInvitedUser(user.Id)
+		} else {
+			deleteErr = user.Delete()
+		}
+		if deleteErr != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": err.Error(),
+				"message": deleteErr.Error(),
 			})
 			return
 		}
@@ -1137,9 +1177,13 @@ func ManageUser(c *gin.Context) {
 		if err := model.InvalidateUserTokensCache(user.Id); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 		}
+		auditUsername := user.Username
+		if user.Status == common.UserStatusPendingClaim {
+			auditUsername = fmt.Sprintf("pending user #%d", user.Id)
+		}
 		recordManageAuditFor(c, user.Id, "user.manage", map[string]interface{}{
 			"action":   req.Action,
-			"username": user.Username,
+			"username": auditUsername,
 			"id":       user.Id,
 		})
 		c.JSON(http.StatusOK, gin.H{

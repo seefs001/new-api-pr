@@ -59,6 +59,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
+          disabled={!row.getCanSelect()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label='Select row'
           className='translate-y-[2px]'
@@ -86,8 +87,11 @@ export function useUsersColumns(): ColumnDef<User>[] {
       accessorKey: 'username',
       header: t('Username'),
       cell: ({ row }) => {
-        const username = row.getValue('username') as string
-        const displayName = row.original.display_name
+        const isPendingClaim = row.original.status === USER_STATUS.PENDING_CLAIM
+        const username = isPendingClaim
+          ? t('Pending user #{{id}}', { id: row.original.id })
+          : (row.getValue('username') as string)
+        const displayName = isPendingClaim ? '' : row.original.display_name
         const remark = row.original.remark
 
         return (
@@ -223,6 +227,15 @@ export function useUsersColumns(): ColumnDef<User>[] {
       header: t('Invite Info'),
       cell: ({ row }) => {
         const user = row.original
+        if (user.status === USER_STATUS.PENDING_CLAIM) {
+          return (
+            <StatusBadge
+              label={t('Registration invitation')}
+              variant='warning'
+              copyable={false}
+            />
+          )
+        }
         const affCount = user.aff_count || 0
         const affHistoryQuota = user.aff_history_quota || 0
         const inviterId = user.inviter_id || 0

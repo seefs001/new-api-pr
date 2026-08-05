@@ -55,8 +55,12 @@ const USER_SORTABLE_COLUMNS = new Set<UserSortBy>([
   'last_login_at',
 ])
 
-function isDisabledUserRow(user: User) {
-  return isUserDeleted(user) || user.status === USER_STATUS.DISABLED
+function isMutedUserRow(user: User) {
+  return (
+    isUserDeleted(user) ||
+    user.status === USER_STATUS.DISABLED ||
+    user.status === USER_STATUS.PENDING_CLAIM
+  )
 }
 
 export function UsersTable() {
@@ -173,7 +177,9 @@ export function UsersTable() {
   const { table } = useDataTable({
     data: users,
     columns,
-    enableRowSelection: true,
+    enableRowSelection: (row) =>
+      !isUserDeleted(row.original) &&
+      row.original.status !== USER_STATUS.PENDING_CLAIM,
     columnFilters,
     globalFilter,
     pagination,
@@ -232,13 +238,12 @@ export function UsersTable() {
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledUserRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
-          : undefined
-      }
+      getRowClassName={(row, { isMobile }) => {
+        if (!isMutedUserRow(row.original)) {
+          return undefined
+        }
+        return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
+      }}
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

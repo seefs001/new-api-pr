@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
 import { deleteUser } from '../api'
-import { ERROR_MESSAGES } from '../constants'
+import { ERROR_MESSAGES, USER_STATUS } from '../constants'
 import { getUserActionMessage } from '../lib'
 import { useUsers } from './users-provider'
 
@@ -32,8 +32,15 @@ export function UsersDeleteDialog() {
   const { open, setOpen, currentRow, triggerRefresh } = useUsers()
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const userLabel =
+    currentRow?.status === USER_STATUS.PENDING_CLAIM
+      ? t('Pending user #{{id}}', { id: currentRow.id })
+      : currentRow?.username
+
   const handleDelete = async () => {
-    if (!currentRow) return
+    if (!currentRow) {
+      return
+    }
 
     setIsDeleting(true)
     try {
@@ -60,7 +67,7 @@ export function UsersDeleteDialog() {
       desc={
         <>
           {t('This will permanently delete user')}{' '}
-          <span className='font-semibold'>{currentRow?.username}</span>
+          <span className='font-semibold'>{userLabel}</span>
           {t('. This action cannot be undone.')}
         </>
       }

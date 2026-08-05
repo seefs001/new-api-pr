@@ -27,6 +27,9 @@ import type {
   UserFormData,
   ManageUserAction,
   ManageUserQuotaPayload,
+  AdminUserInvitationPayload,
+  UserInvitationIssue,
+  UserInvitationRecord,
   ApiResponse,
 } from './types'
 
@@ -174,6 +177,45 @@ export async function getPermissionCatalog(): Promise<PermissionCatalog> {
   }
 }
 
+export async function createUserInvitation(
+  data: AdminUserInvitationPayload
+): Promise<ApiResponse<UserInvitationIssue>> {
+  const res = await api.post('/api/user/invitations', data)
+  return res.data
+}
+
+export async function getUserInvitations(
+  userId: number
+): Promise<ApiResponse<UserInvitationRecord[]>> {
+  const res = await api.get(`/api/user/${userId}/invitations`)
+  return res.data
+}
+
+export async function updateUserInvitation(
+  userId: number,
+  data: AdminUserInvitationPayload
+): Promise<ApiResponse<UserInvitationRecord>> {
+  const res = await api.put(`/api/user/${userId}/invitation`, data)
+  return res.data
+}
+
+export async function reissueUserInvitation(
+  userId: number,
+  data: AdminUserInvitationPayload
+): Promise<ApiResponse<UserInvitationIssue>> {
+  const res = await api.post(`/api/user/${userId}/invitation/reissue`, data)
+  return res.data
+}
+
+export async function revokeUserInvitation(
+  userId: number
+): Promise<ApiResponse> {
+  const res = await api.post(`/api/user/${userId}/invitation/revoke`)
+  return res.data
+}
+
+// ============================================================================
+// Admin Binding Management APIs
 // ============================================================================
 // Admin Binding Management APIs
 // ============================================================================

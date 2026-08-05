@@ -29,6 +29,9 @@ import type {
   Login2FAResponse,
   TwoFAPayload,
   RegisterPayload,
+  InvitationClaimPayload,
+  InvitationPreview,
+  InvitationClaimResult,
   ApiResponse,
 } from './types'
 
@@ -184,6 +187,27 @@ export async function telegramLogin(
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
   const res = await api.post(`/api/user/register`, payload, {
     params: { turnstile: payload.turnstile ?? '' },
+  })
+  return res.data
+}
+
+export async function getInvitationPreview(
+  credentialType: 'link' | 'code',
+  credential: string
+): Promise<ApiResponse<InvitationPreview>> {
+  const res = await api.get('/api/user/invitation/preview', {
+    params: { credential_type: credentialType, credential },
+    skipAuthRefresh: true,
+  })
+  return res.data
+}
+
+export async function claimInvitation(
+  payload: InvitationClaimPayload
+): Promise<ApiResponse<InvitationClaimResult>> {
+  const res = await api.post('/api/user/invitation/claim', payload, {
+    params: { turnstile: payload.turnstile ?? '' },
+    skipAuthRefresh: true,
   })
   return res.data
 }

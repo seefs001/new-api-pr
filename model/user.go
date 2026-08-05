@@ -107,6 +107,7 @@ type User struct {
 	Remark           string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	ActivatedAt      int64                      `json:"activated_at" gorm:"type:bigint;default:0;column:activated_at;index"`
 	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion      int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
@@ -469,7 +470,7 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 		return 0, errors.New("affCode 为空！")
 	}
 	var user User
-	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
+	err := DB.Select("id").First(&user, "aff_code = ? AND status = ?", affCode, common.UserStatusEnabled).Error
 	return user.Id, err
 }
 
@@ -541,6 +542,12 @@ func (user *User) prepareForInsert(tx *gorm.DB) error {
 	user.Email = NormalizeEmail(user.Email)
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
 		return err
+	}
+	if user.Status == 0 {
+		user.Status = common.UserStatusEnabled
+	}
+	if user.Status != common.UserStatusPendingClaim && user.ActivatedAt == 0 {
+		user.ActivatedAt = common.GetTimestamp()
 	}
 	if user.Password == "" {
 		return nil

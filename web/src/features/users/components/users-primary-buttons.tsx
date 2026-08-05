@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus } from 'lucide-react'
+import { Add01Icon, UserAdd01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -32,10 +33,19 @@ export function UsersPrimaryButtons() {
     setOpen('create')
   }
 
+  const handleInvite = () => {
+    setCurrentRow(null)
+    setOpen('invite')
+  }
+
   return (
     <div className='flex gap-2'>
+      <Button size='sm' variant='outline' onClick={handleInvite}>
+        <HugeiconsIcon icon={UserAdd01Icon} data-icon='inline-start' />
+        {t('Invite User')}
+      </Button>
       <Button size='sm' onClick={handleCreate}>
-        <Plus className='h-4 w-4' />
+        <HugeiconsIcon icon={Add01Icon} data-icon='inline-start' />
         {t('Add User')}
       </Button>
     </div>

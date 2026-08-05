@@ -42,6 +42,16 @@ export interface RegisterPayload {
   turnstile?: string
 }
 
+export interface InvitationClaimPayload {
+  credential_type: 'link' | 'code'
+  credential: string
+  username: string
+  password: string
+  email?: string
+  verification_code?: string
+  turnstile?: string
+}
+
 export interface PasswordResetPayload {
   email: string
   turnstile?: string
@@ -77,6 +87,33 @@ export interface Login2FAResponse {
   success: boolean
   message: string
   data?: AuthBundle
+}
+
+export interface InvitationPreview {
+  invitation: {
+    id: number
+    user_id: number
+    status: 'active'
+    expires_at: number
+    created_at: number
+  }
+  entitlements: {
+    quota: number
+    group: string
+    plan?: {
+      plan_id: number
+      title: string
+      duration_unit: 'year' | 'month' | 'day' | 'hour' | 'custom'
+      duration_value: number
+      custom_seconds: number
+      total_amount: number
+    }
+  }
+}
+
+export interface InvitationClaimResult {
+  user_id: number
+  username: string
 }
 
 export interface ApiResponse<T = unknown> {

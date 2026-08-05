@@ -401,7 +401,7 @@ func GetTwoFAStats() (map[string]interface{}, error) {
 	var totalUsers, enabledUsers int64
 
 	// 总用户数
-	if err := DB.Model(&User{}).Count(&totalUsers).Error; err != nil {
+	if err := DB.Model(&User{}).Where("status <> ?", common.UserStatusPendingClaim).Count(&totalUsers).Error; err != nil {
 		return nil, err
 	}
 

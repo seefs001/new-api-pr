@@ -55,6 +55,7 @@ export const userSchema = z.object({
   status: userStatusSchema,
   role: userRoleSchema,
   created_at: z.number().optional(),
+  activated_at: z.number().optional(),
   updated_at: z.number().optional(),
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
@@ -145,8 +146,67 @@ export interface ManageUserQuotaPayload {
   value: number
 }
 
+export type UserInvitationStatus = 'active' | 'claimed' | 'revoked' | 'expired'
+
+export interface InvitationPlanSnapshot {
+  plan_id: number
+  title: string
+  duration_unit: 'year' | 'month' | 'day' | 'hour' | 'custom'
+  duration_value: number
+  custom_seconds: number
+  total_amount: number
+  quota_reset_period: 'never' | 'daily' | 'weekly' | 'monthly' | 'custom'
+  quota_reset_custom_seconds: number
+  allow_wallet_overflow: boolean
+  upgrade_group: string
+  downgrade_group: string
+}
+
+export interface UserInvitationEntitlements {
+  quota: number
+  group: string
+  plan?: InvitationPlanSnapshot
+}
+
+export interface UserInvitation {
+  id: number
+  user_id: number
+  created_by: number
+  status: UserInvitationStatus
+  remark?: string
+  expires_at: number
+  claimed_at: number
+  revoked_at: number
+  claim_method?: 'link' | 'code'
+  created_at: number
+  updated_at: number
+}
+
+export interface UserInvitationRecord {
+  invitation: UserInvitation
+  entitlements: UserInvitationEntitlements
+}
+
+export interface UserInvitationIssue extends UserInvitationRecord {
+  link_token: string
+  manual_code: string
+}
+
+export interface AdminUserInvitationPayload {
+  quota: number
+  group: string
+  plan_id: number
+  remark: string
+  expires_at: number
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================
 
-export type UsersDialogType = 'create' | 'update' | 'delete'
+export type UsersDialogType =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'invite'
+  | 'manage-invitation'
