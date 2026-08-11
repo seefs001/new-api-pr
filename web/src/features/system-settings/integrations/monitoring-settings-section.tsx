@@ -68,6 +68,11 @@ const monitoringSchema = z.object({
     bucket_time: z.enum(['minute', '5min', 'hour']),
     retention_days: z.coerce.number().min(0),
   }),
+  codex_usage_setting: z.object({
+    enabled: z.boolean(),
+    collection_interval_minutes: z.coerce.number().min(5).max(1440),
+    retention_days: z.coerce.number().min(0).max(3650),
+  }),
 })
 
 type MonitoringFormInput = z.input<typeof monitoringSchema>
@@ -79,6 +84,9 @@ type FlatMonitoringDefaults = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
   'perf_metrics_setting.retention_days': number
+  'codex_usage_setting.enabled': boolean
+  'codex_usage_setting.collection_interval_minutes': number
+  'codex_usage_setting.retention_days': number
 }
 
 type MonitoringSettingsSectionProps = {
@@ -95,6 +103,12 @@ const buildFormDefaults = (
     bucket_time: defaults['perf_metrics_setting.bucket_time'],
     retention_days: defaults['perf_metrics_setting.retention_days'],
   },
+  codex_usage_setting: {
+    enabled: defaults['codex_usage_setting.enabled'],
+    collection_interval_minutes:
+      defaults['codex_usage_setting.collection_interval_minutes'],
+    retention_days: defaults['codex_usage_setting.retention_days'],
+  },
 })
 
 const normalizeDefaults = (
@@ -108,6 +122,11 @@ const normalizeDefaults = (
     defaults['perf_metrics_setting.bucket_time'],
   'perf_metrics_setting.retention_days':
     defaults['perf_metrics_setting.retention_days'],
+  'codex_usage_setting.enabled': defaults['codex_usage_setting.enabled'],
+  'codex_usage_setting.collection_interval_minutes':
+    defaults['codex_usage_setting.collection_interval_minutes'],
+  'codex_usage_setting.retention_days':
+    defaults['codex_usage_setting.retention_days'],
 })
 
 const normalizeFormValues = (
@@ -120,6 +139,11 @@ const normalizeFormValues = (
   'perf_metrics_setting.bucket_time': values.perf_metrics_setting.bucket_time,
   'perf_metrics_setting.retention_days':
     values.perf_metrics_setting.retention_days,
+  'codex_usage_setting.enabled': values.codex_usage_setting.enabled,
+  'codex_usage_setting.collection_interval_minutes':
+    values.codex_usage_setting.collection_interval_minutes,
+  'codex_usage_setting.retention_days':
+    values.codex_usage_setting.retention_days,
 })
 
 export function MonitoringSettingsSection({
@@ -155,6 +179,7 @@ export function MonitoringSettingsSection({
   }, [defaultValues])
 
   const perfMetricsEnabled = form.watch('perf_metrics_setting.enabled')
+  const codexUsageEnabled = form.watch('codex_usage_setting.enabled')
 
   const onSubmit = async (values: MonitoringFormValues) => {
     const normalized = normalizeFormValues(values)
@@ -303,6 +328,78 @@ export function MonitoringSettingsSection({
                       step={1}
                       {...safeNumberFieldProps(field)}
                       disabled={!perfMetricsEnabled}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('0 means data is kept permanently')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='border-t pt-4'>
+            <h4 className='font-medium'>{t('Codex usage history')}</h4>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t(
+                'Sample Codex upstream usage to build account-level trend charts.'
+              )}
+            </p>
+          </div>
+
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+            <FormField
+              control={form.control}
+              name='codex_usage_setting.enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Codex usage history')}</FormLabel>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='codex_usage_setting.collection_interval_minutes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Collection interval (minutes)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={5}
+                      max={1440}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                      disabled={!codexUsageEnabled}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='codex_usage_setting.retention_days'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Retention days')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={3650}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                      disabled={!codexUsageEnabled}
                     />
                   </FormControl>
                   <FormDescription>

@@ -23,6 +23,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 		service.FetchCodexWhamUsage,
 		"failed to fetch codex usage",
 		"获取用量信息失败，请稍后重试",
+		true,
 	)
 }
 
@@ -32,6 +33,7 @@ func GetCodexChannelRateLimitResetCredits(c *gin.Context) {
 		service.FetchCodexWhamRateLimitResetCredits,
 		"failed to fetch codex reset credits",
 		"获取重置次数详情失败，请稍后重试",
+		false,
 	)
 }
 
@@ -41,6 +43,7 @@ func ResetCodexChannelUsage(c *gin.Context) {
 		service.ConsumeCodexWhamRateLimitResetCredit,
 		"failed to reset codex usage",
 		"重置用量失败，请稍后重试",
+		false,
 	)
 }
 
@@ -57,47 +60,15 @@ func fetchCodexChannelWhamData(
 	fetch codexWhamFetchFunc,
 	logPrefix string,
 	userMessage string,
+	recordUsage bool,
 ) {
-	channelId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
-		return
-	}
-
-	ch, err := model.GetChannelById(channelId, true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if ch == nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
-		return
-	}
-	if ch.Type != constant.ChannelTypeCodex {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
-		return
-	}
-	if ch.ChannelInfo.IsMultiKey {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multi-key channel is not supported"})
-		return
-	}
-
-	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
-	if err != nil {
-		common.SysError("failed to parse oauth key: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析凭证失败，请检查渠道配置"})
+	ch, oauthKey, ok := resolveCodexChannelCredential(c)
+	if !ok {
 		return
 	}
 	accessToken := strings.TrimSpace(oauthKey.AccessToken)
 	accountID := strings.TrimSpace(oauthKey.AccountID)
-	if accessToken == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "codex channel: access_token is required"})
-		return
-	}
-	if accountID == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "codex channel: account_id is required"})
-		return
-	}
+	observedAt := time.Now()
 
 	client, err := service.GetHttpClientWithProxy(ch.GetSetting().Proxy)
 	if err != nil {
@@ -151,7 +122,12 @@ func fetchCodexChannelWhamData(
 		payload = string(body)
 	}
 
-	ok := statusCode >= 200 && statusCode < 300
+	ok = statusCode >= 200 && statusCode < 300
+	if ok && recordUsage {
+		if _, recordErr := service.RecordCodexUsageIfEnabled(c.Request.Context(), body, accountID, observedAt); recordErr != nil {
+			common.SysError("failed to record codex usage history: " + recordErr.Error())
+		}
+	}
 	resp := gin.H{
 		"success":         ok,
 		"message":         "",
@@ -162,4 +138,58 @@ func fetchCodexChannelWhamData(
 		resp["message"] = fmt.Sprintf("upstream status: %d", statusCode)
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+func GetCodexChannelUsageHistory(c *gin.Context) {
+	_, oauthKey, ok := resolveCodexChannelCredential(c)
+	if !ok {
+		return
+	}
+	from, to, resolution, err := service.ResolveCodexUsageHistoryRange(c.Query("range"), time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	history, err := service.QueryCodexUsageHistory(c.Request.Context(), oauthKey.AccountID, from, to, resolution)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": history})
+}
+
+func resolveCodexChannelCredential(c *gin.Context) (*model.Channel, *codex.OAuthKey, bool) {
+	channelID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		return nil, nil, false
+	}
+	channel, err := model.GetChannelById(channelID, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return nil, nil, false
+	}
+	if channel.Type != constant.ChannelTypeCodex {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
+		return nil, nil, false
+	}
+	if channel.ChannelInfo.IsMultiKey {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multi-key channel is not supported"})
+		return nil, nil, false
+	}
+	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(channel.Key))
+	if err != nil {
+		common.SysError("failed to parse oauth key: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析凭证失败，请检查渠道配置"})
+		return nil, nil, false
+	}
+	if strings.TrimSpace(oauthKey.AccessToken) == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "codex channel: access_token is required"})
+		return nil, nil, false
+	}
+	if strings.TrimSpace(oauthKey.AccountID) == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "codex channel: account_id is required"})
+		return nil, nil, false
+	}
+	return channel, oauthKey, true
 }

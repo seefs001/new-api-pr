@@ -9,12 +9,13 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/codex_usage_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
-// RegisterScheduledSystemTasks wires the periodic channel test, upstream model
-// update, and async task polling (Midjourney / Suno / video) jobs into the
-// system task framework so a DB lease dedups execution across multiple master
+// RegisterScheduledSystemTasks wires periodic channel, model, task polling,
+// Codex usage collection, and metric cleanup jobs into the system task
+// framework so a DB lease dedups execution across multiple master
 // instances and each run is recorded as one task row. Call this before
 // service.StartSystemTaskRunner.
 func RegisterScheduledSystemTasks() {
@@ -22,6 +23,8 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(codexUsageCollectHandler{})
+	service.RegisterSystemTaskHandler(metricCleanupHandler{})
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and
@@ -149,6 +152,50 @@ func (asyncTaskPollHandler) NewPayload() any { return nil }
 
 func (asyncTaskPollHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	summary := service.RunTaskPollingOnce(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
+}
+
+type codexUsageCollectHandler struct{}
+
+func (codexUsageCollectHandler) Type() string { return model.SystemTaskTypeCodexUsageCollect }
+
+func (codexUsageCollectHandler) Enabled() bool {
+	return codex_usage_setting.GetSetting().Enabled
+}
+
+func (codexUsageCollectHandler) Interval() time.Duration {
+	return codex_usage_setting.CollectionInterval()
+}
+
+func (codexUsageCollectHandler) NewPayload() any { return nil }
+
+func (codexUsageCollectHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := service.CollectCodexUsage(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, summary, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
+}
+
+type metricCleanupHandler struct{}
+
+func (metricCleanupHandler) Type() string { return model.SystemTaskTypeMetricCleanup }
+
+func (metricCleanupHandler) Enabled() bool {
+	return codex_usage_setting.GetSetting().RetentionDays > 0
+}
+
+func (metricCleanupHandler) Interval() time.Duration { return 24 * time.Hour }
+
+func (metricCleanupHandler) NewPayload() any { return nil }
+
+func (metricCleanupHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := service.CleanupCodexUsageMetrics(ctx)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
 	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
 

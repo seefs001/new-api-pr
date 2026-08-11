@@ -55,6 +55,12 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+          'codex_usage_setting.enabled':
+            settings['codex_usage_setting.enabled'] ?? false,
+          'codex_usage_setting.collection_interval_minutes':
+            settings['codex_usage_setting.collection_interval_minutes'] ?? 15,
+          'codex_usage_setting.retention_days':
+            settings['codex_usage_setting.retention_days'] ?? 90,
         }}
       />
     ),

@@ -43,7 +43,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import {
+  type ReactNode,
+  lazy,
+  Suspense,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -83,6 +90,8 @@ import {
   resetCodexUsage,
   type CodexResetCreditsResponse,
 } from '../../api'
+
+const CodexUsageHistoryChart = lazy(() => import('./codex-usage-history-chart'))
 
 type CodexRateLimitWindow = {
   used_percent?: number
@@ -1243,6 +1252,12 @@ export function CodexUsageDialog({
             weeklyWindow={weeklyWindow}
           />
         </div>
+
+        {channelId ? (
+          <Suspense fallback={<Skeleton className='h-[320px] w-full' />}>
+            <CodexUsageHistoryChart channelId={channelId} />
+          </Suspense>
+        ) : null}
 
         {additionalRateLimits.length > 0 ? (
           <div className='flex flex-col gap-3'>

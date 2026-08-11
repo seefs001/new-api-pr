@@ -59,6 +59,48 @@ export type CodexResetCreditsResponse = CodexUsageResponse
 
 export type CodexUsageResetResponse = CodexUsageResponse
 
+export type CodexUsageHistoryPoint = {
+  ts: number
+  used_percent: number | null
+  min_used_percent: number | null
+  max_used_percent: number | null
+  sample_count: number
+}
+
+export type CodexUsageHistoryLimit = {
+  limit_type: 'base' | 'additional'
+  limit_key: string
+  window_key: string
+  window_seconds: number | null
+  points: CodexUsageHistoryPoint[]
+}
+
+export type CodexResetCreditHistoryPoint = {
+  ts: number
+  value: number | null
+  sample_count: number
+}
+
+export type CodexUsageHistoryData = {
+  collection: {
+    enabled: boolean
+    interval_seconds: number
+    last_observed_at?: number
+    stale: boolean
+  }
+  from: number
+  to: number
+  resolution_seconds: number
+  limits: CodexUsageHistoryLimit[]
+  reset_credits: CodexResetCreditHistoryPoint[]
+}
+
+export type CodexUsageHistoryResponse = {
+  success: boolean
+  message?: string
+  data?: CodexUsageHistoryData
+}
+
 export type CodexCredentialRefreshResponse = {
   success: boolean
   message?: string
@@ -328,6 +370,17 @@ export async function getCodexUsage(
   const res = await api.get(
     `/api/channel/${channelId}/codex/usage`,
     channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function getCodexUsageHistory(
+  channelId: number,
+  range: '24h' | '7d' | '30d' | '90d'
+): Promise<CodexUsageHistoryResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/codex/usage/history`,
+    channelActionConfig({ params: { range } })
   )
   return res.data
 }

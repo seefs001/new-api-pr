@@ -365,6 +365,9 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+  'codex_usage_setting.enabled': boolean
+  'codex_usage_setting.collection_interval_minutes': number
+  'codex_usage_setting.retention_days': number
 }
 
 export type SecuritySettings = {
