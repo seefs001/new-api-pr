@@ -21,29 +21,33 @@ import (
 
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
+	return handleStreamFormat(c, info, data, nil, forceFormat, thinkToContent)
+}
+
+func handleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, parsed *dto.ChatCompletionsStreamResponse, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
-		return sendStreamData(c, info, data, forceFormat, thinkToContent)
+		return sendStreamData(c, info, data, parsed, forceFormat, thinkToContent)
 	case types.RelayFormatClaude:
-		return handleClaudeFormat(c, data, info)
+		return handleClaudeFormat(c, data, info, parsed)
 	case types.RelayFormatGemini:
-		return handleGeminiFormat(c, data, info)
+		return handleGeminiFormat(c, data, info, parsed)
 	}
 	return nil
 }
 
-func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
-	var streamResponse dto.ChatCompletionsStreamResponse
-	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo, parsed *dto.ChatCompletionsStreamResponse) error {
+	streamResponse, err := chatCompletionsStreamFromChunk(data, parsed)
+	if err != nil {
 		return err
 	}
 
 	if streamResponse.Usage != nil {
 		info.ClaudeConvertInfo.Usage = streamResponse.Usage
 	}
-	result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
+	result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatClaude, streamResponse)
 	if err != nil {
 		return err
 	}
@@ -57,14 +61,14 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	return nil
 }
 
-func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
-	var streamResponse dto.ChatCompletionsStreamResponse
-	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo, parsed *dto.ChatCompletionsStreamResponse) error {
+	streamResponse, err := chatCompletionsStreamFromChunk(data, parsed)
+	if err != nil {
 		logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 		return err
 	}
 
-	result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatGemini, &streamResponse)
+	result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatGemini, streamResponse)
 	if err != nil {
 		return err
 	}
@@ -125,19 +129,61 @@ func processTokenData(relayMode int, data string, responseTextBuilder *strings.B
 	return nil
 }
 
+// processOaiStreamChunk unmarshals a chat-completions SSE data line at most once
+// and uses that value for tool-name collection and optional text accumulation.
+func processOaiStreamChunk(relayMode int, data string, seen map[string]struct{}, names *[]string, responseTextBuilder *strings.Builder, toolCount *int, accumulateText bool) (*dto.ChatCompletionsStreamResponse, error) {
+	switch relayMode {
+	case relayconstant.RelayModeChatCompletions:
+		streamResponse := new(dto.ChatCompletionsStreamResponse)
+		if err := common.UnmarshalJsonStr(data, streamResponse); err != nil {
+			return nil, err
+		}
+		if strings.Contains(data, `"tool_calls"`) {
+			collectStreamFunctionCallNamesFromParsed(streamResponse, seen, names)
+		}
+		if accumulateText {
+			if err := ProcessStreamResponse(*streamResponse, responseTextBuilder, toolCount); err != nil {
+				return streamResponse, err
+			}
+		}
+		return streamResponse, nil
+	default:
+		if strings.Contains(data, `"tool_calls"`) {
+			collectStreamFunctionCallNames(data, seen, names)
+		}
+		if accumulateText {
+			if err := processTokenData(relayMode, data, responseTextBuilder, toolCount); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	}
+}
+
+func chatCompletionsStreamFromChunk(data string, parsed *dto.ChatCompletionsStreamResponse) (*dto.ChatCompletionsStreamResponse, error) {
+	if parsed != nil {
+		return parsed, nil
+	}
+	streamResponse := new(dto.ChatCompletionsStreamResponse)
+	if err := common.UnmarshalJsonStr(data, streamResponse); err != nil {
+		return nil, err
+	}
+	return streamResponse, nil
+}
+
 func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamResponse, responseTextBuilder *strings.Builder) {
 	for _, choice := range streamResponse.Choices {
 		responseTextBuilder.WriteString(choice.Text)
 	}
 }
 
-func handleLastResponse(lastStreamData string, responseId *string, createAt *int64,
+func handleLastResponse(lastStreamData string, parsed *dto.ChatCompletionsStreamResponse, responseId *string, createAt *int64,
 	systemFingerprint *string, model *string, usage **dto.Usage,
 	containStreamUsage *bool, info *relaycommon.RelayInfo,
 	shouldSendLastResp *bool) error {
 
-	var lastStreamResponse dto.ChatCompletionsStreamResponse
-	if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &lastStreamResponse); err != nil {
+	lastStreamResponse, err := chatCompletionsStreamFromChunk(lastStreamData, parsed)
+	if err != nil {
 		return err
 	}
 

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 
 	"gorm.io/gorm"
@@ -338,69 +340,82 @@ type RecordConsumeLogParams struct {
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
 	Other            map[string]interface{} `json:"other"`
+	// RecordIpLog comes from RelayInfo.UserSetting (loaded at auth). Do not
+	// re-fetch user settings here; that was a full cache pull for one bool.
+	RecordIpLog bool `json:"-"`
+}
+
+var consumeLogPersistWG sync.WaitGroup
+
+func waitConsumeLogPersist() {
+	consumeLogPersistWG.Wait()
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	if !common.LogConsumeEnabled {
 		return
 	}
-	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
+	// Copy every value the persist goroutine needs. gin.Context is reused after
+	// the handler returns and must not be captured by the async closure.
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	otherStr := common.MapToJsonStr(params.Other)
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
+	dataExportEnabled := common.DataExportEnabled
+	nodeName := common.NodeName
+	ip := ""
+	if params.RecordIpLog {
+		ip = c.ClientIP()
 	}
+
+	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, model=%s, quota=%d, requestId=%s",
+		userId, params.ModelName, params.Quota, requestId))
+
 	log := &Log{
-		UserId:           userId,
-		Username:         username,
-		CreatedAt:        createdAt,
-		Type:             LogTypeConsume,
-		Content:          params.Content,
-		PromptTokens:     params.PromptTokens,
-		CompletionTokens: params.CompletionTokens,
-		TokenName:        params.TokenName,
-		ModelName:        params.ModelName,
-		Quota:            params.Quota,
-		ChannelId:        params.ChannelId,
-		TokenId:          params.TokenId,
-		UseTime:          params.UseTimeSeconds,
-		IsStream:         params.IsStream,
-		Group:            params.Group,
-		Ip: func() string {
-			if needRecordIp {
-				return c.ClientIP()
-			}
-			return ""
-		}(),
+		UserId:            userId,
+		Username:          username,
+		CreatedAt:         createdAt,
+		Type:              LogTypeConsume,
+		Content:           params.Content,
+		PromptTokens:      params.PromptTokens,
+		CompletionTokens:  params.CompletionTokens,
+		TokenName:         params.TokenName,
+		ModelName:         params.ModelName,
+		Quota:             params.Quota,
+		ChannelId:         params.ChannelId,
+		TokenId:           params.TokenId,
+		UseTime:           params.UseTimeSeconds,
+		IsStream:          params.IsStream,
+		Group:             params.Group,
+		Ip:                ip,
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
-	err := createLog(log)
-	if err != nil {
-		logger.LogError(c, "failed to record log: "+err.Error())
-	}
-	if common.DataExportEnabled {
-		LogQuotaData(QuotaDataLogParams{
-			UserID:    userId,
-			Username:  username,
-			ModelName: params.ModelName,
-			Quota:     params.Quota,
-			CreatedAt: createdAt,
-			TokenUsed: params.PromptTokens + params.CompletionTokens,
-			UseGroup:  params.Group,
-			TokenID:   params.TokenId,
-			ChannelID: params.ChannelId,
-			NodeName:  common.NodeName,
-		})
-	}
+	// Persist after quota settlement only. consume log is an audit copy, not the
+	// charge source. gopool.Go has no shutdown drain: a crash may drop in-flight rows.
+	consumeLogPersistWG.Add(1)
+	gopool.Go(func() {
+		defer consumeLogPersistWG.Done()
+		if err := createLog(log); err != nil {
+			common.SysError(fmt.Sprintf("failed to record consume log: requestId=%s userId=%d err=%s", requestId, userId, err.Error()))
+		}
+		if dataExportEnabled {
+			LogQuotaData(QuotaDataLogParams{
+				UserID:    userId,
+				Username:  username,
+				ModelName: log.ModelName,
+				Quota:     log.Quota,
+				CreatedAt: createdAt,
+				TokenUsed: log.PromptTokens + log.CompletionTokens,
+				UseGroup:  log.Group,
+				TokenID:   log.TokenId,
+				ChannelID: log.ChannelId,
+				NodeName:  nodeName,
+			})
+		}
+	})
 }
 
 type RecordTaskBillingLogParams struct {

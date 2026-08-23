@@ -20,7 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
+func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, parsed *dto.ChatCompletionsStreamResponse, forceFormat bool, thinkToContent bool) error {
 	if data == "" {
 		return nil
 	}
@@ -29,10 +29,11 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 		return helper.StringData(c, data)
 	}
 
-	var lastStreamResponse dto.ChatCompletionsStreamResponse
-	if err := common.UnmarshalJsonStr(data, &lastStreamResponse); err != nil {
+	parsedResponse, err := chatCompletionsStreamFromChunk(data, parsed)
+	if err != nil {
 		return err
 	}
+	lastStreamResponse := *parsedResponse
 
 	if !thinkToContent {
 		return helper.ObjectData(c, lastStreamResponse)
@@ -118,6 +119,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var toolCount int
 	var usage = &dto.Usage{}
 	var lastStreamData string
+	var lastParsed *dto.ChatCompletionsStreamResponse
 	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
@@ -127,7 +129,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
-			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
+			if err := handleStreamFormat(c, info, lastStreamData, lastParsed, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
 				sr.Error(err)
 			}
@@ -139,10 +141,15 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 
 			lastStreamData = data
-			collectStreamFunctionCallNames(data, seenStreamToolCalls, &streamFunctionCallNames)
-			if err := processTokenData(info.RelayMode, data, &responseTextBuilder, &toolCount); err != nil {
+			// B13: accumulate unless containStreamUsage is already true. Usage is
+			// typically only on the last chunk, so this is almost always accumulate.
+			parsed, err := processOaiStreamChunk(info.RelayMode, data, seenStreamToolCalls, &streamFunctionCallNames, &responseTextBuilder, &toolCount, !containStreamUsage)
+			if err != nil {
 				logger.LogError(c, "error processing stream token data: "+err.Error())
+				lastParsed = nil
 				sr.Error(err)
+			} else {
+				lastParsed = parsed
 			}
 		}
 	})
@@ -167,14 +174,14 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	// 处理最后的响应
 	shouldSendLastResp := true
-	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
+	if err := handleLastResponse(lastStreamData, lastParsed, &responseId, &createAt, &systemFingerprint, &model, &usage,
 		&containStreamUsage, info, &shouldSendLastResp); err != nil {
 		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		if shouldSendLastResp {
-			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+			_ = sendStreamData(c, info, lastStreamData, lastParsed, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 		}
 	}
 
@@ -195,8 +202,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 }
 
 func collectStreamFunctionCallNames(data string, seen map[string]struct{}, names *[]string) {
+	if !strings.Contains(data, `"tool_calls"`) {
+		return
+	}
 	var streamResponse dto.ChatCompletionsStreamResponse
 	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+		return
+	}
+	collectStreamFunctionCallNamesFromParsed(&streamResponse, seen, names)
+}
+
+func collectStreamFunctionCallNamesFromParsed(streamResponse *dto.ChatCompletionsStreamResponse, seen map[string]struct{}, names *[]string) {
+	if streamResponse == nil {
 		return
 	}
 	for _, choice := range streamResponse.Choices {

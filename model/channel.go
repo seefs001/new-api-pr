@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"strings"
 	"sync"
@@ -57,6 +58,52 @@ type Channel struct {
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+}
+
+// Parsed channel config JSON, keyed by channel id. A hit requires the raw
+// source string to match exactly; Id==0 (unsaved) skips the cache.
+type channelParsed[T any] struct {
+	source string
+	value  T
+}
+
+var (
+	channelSettingCache        sync.Map // int -> *channelParsed[dto.ChannelSettings]
+	channelOtherSettingsCache  sync.Map // int -> *channelParsed[dto.ChannelOtherSettings]
+	channelParamOverrideCache  sync.Map // int -> *channelParsed[map[string]interface{}]
+	channelHeaderOverrideCache sync.Map // int -> *channelParsed[map[string]interface{}]
+)
+
+func loadChannelParsed[T any](cache *sync.Map, id int, source string) (*channelParsed[T], bool) {
+	if id == 0 {
+		return nil, false
+	}
+	v, ok := cache.Load(id)
+	if !ok {
+		return nil, false
+	}
+	parsed, ok := v.(*channelParsed[T])
+	if !ok || parsed.source != source {
+		return nil, false
+	}
+	return parsed, true
+}
+
+func storeChannelParsed[T any](cache *sync.Map, id int, source string, value T) {
+	if id == 0 {
+		return
+	}
+	cache.Store(id, &channelParsed[T]{source: source, value: value})
+}
+
+func deleteChannelParsedCache(id int) {
+	if id == 0 {
+		return
+	}
+	channelSettingCache.Delete(id)
+	channelOtherSettingsCache.Delete(id)
+	channelParamOverrideCache.Delete(id)
+	channelHeaderOverrideCache.Delete(id)
 }
 
 type ChannelInfo struct {
@@ -487,6 +534,9 @@ func BatchDeleteChannels(ids []int) (int64, error) {
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
 	}
+	for _, id := range ids {
+		deleteChannelParsedCache(id)
+	}
 	return deletedCount, nil
 }
 
@@ -614,6 +664,7 @@ func (channel *Channel) Delete() error {
 	if err != nil {
 		return err
 	}
+	deleteChannelParsedCache(channel.Id)
 	err = channel.DeleteAbilities()
 	return err
 }
@@ -885,12 +936,30 @@ func updateChannelUsedQuota(id int, quota int) {
 }
 
 func DeleteChannelByStatus(status int64) (int64, error) {
+	var ids []int
+	if err := DB.Model(&Channel{}).Where("status = ?", status).Pluck("id", &ids).Error; err != nil {
+		return 0, err
+	}
 	result := DB.Where("status = ?", status).Delete(&Channel{})
+	if result.Error == nil {
+		for _, id := range ids {
+			deleteChannelParsedCache(id)
+		}
+	}
 	return result.RowsAffected, result.Error
 }
 
 func DeleteDisabledChannel() (int64, error) {
+	var ids []int
+	if err := DB.Model(&Channel{}).Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Pluck("id", &ids).Error; err != nil {
+		return 0, err
+	}
 	result := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Delete(&Channel{})
+	if result.Error == nil {
+		for _, id := range ids {
+			deleteChannelParsedCache(id)
+		}
+	}
 	return result.RowsAffected, result.Error
 }
 
@@ -994,15 +1063,21 @@ func (channel *Channel) ValidateSettings() error {
 }
 
 func (channel *Channel) GetSetting() dto.ChannelSettings {
+	source := ""
+	if channel.Setting != nil {
+		source = *channel.Setting
+	}
+	if cached, ok := loadChannelParsed[dto.ChannelSettings](&channelSettingCache, channel.Id, source); ok {
+		return cached.value
+	}
 	setting := dto.ChannelSettings{}
-	if channel.Setting != nil && *channel.Setting != "" {
-		err := common.Unmarshal([]byte(*channel.Setting), &setting)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
-			channel.Setting = nil // 清空设置以避免后续错误
-			_ = channel.Save()    // 保存修改
+	if source != "" {
+		if err := common.UnmarshalJsonStr(source, &setting); err != nil {
+			common.SysError(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
+			setting = dto.ChannelSettings{}
 		}
 	}
+	storeChannelParsed(&channelSettingCache, channel.Id, source, setting)
 	return setting
 }
 
@@ -1016,15 +1091,18 @@ func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
 }
 
 func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
+	source := channel.OtherSettings
+	if cached, ok := loadChannelParsed[dto.ChannelOtherSettings](&channelOtherSettingsCache, channel.Id, source); ok {
+		return cached.value
+	}
 	setting := dto.ChannelOtherSettings{}
-	if channel.OtherSettings != "" {
-		err := common.UnmarshalJsonStr(channel.OtherSettings, &setting)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
-			channel.OtherSettings = "{}" // 清空设置以避免后续错误
-			_ = channel.Save()           // 保存修改
+	if source != "" {
+		if err := common.UnmarshalJsonStr(source, &setting); err != nil {
+			common.SysError(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
+			setting = dto.ChannelOtherSettings{}
 		}
 	}
+	storeChannelParsed(&channelOtherSettingsCache, channel.Id, source, setting)
 	return setting
 }
 
@@ -1038,25 +1116,48 @@ func (channel *Channel) SetOtherSettings(setting dto.ChannelOtherSettings) {
 }
 
 func (channel *Channel) GetParamOverride() map[string]interface{} {
+	source := ""
+	if channel.ParamOverride != nil {
+		source = *channel.ParamOverride
+	}
+	if cached, ok := loadChannelParsed[map[string]interface{}](&channelParamOverrideCache, channel.Id, source); ok {
+		return cloneChannelOverrideMap(cached.value)
+	}
 	paramOverride := make(map[string]interface{})
-	if channel.ParamOverride != nil && *channel.ParamOverride != "" {
-		err := common.Unmarshal([]byte(*channel.ParamOverride), &paramOverride)
-		if err != nil {
+	if source != "" {
+		if err := common.UnmarshalJsonStr(source, &paramOverride); err != nil {
 			common.SysLog(fmt.Sprintf("failed to unmarshal param override: channel_id=%d, error=%v", channel.Id, err))
+			paramOverride = make(map[string]interface{})
 		}
 	}
-	return paramOverride
+	storeChannelParsed(&channelParamOverrideCache, channel.Id, source, paramOverride)
+	return cloneChannelOverrideMap(paramOverride)
 }
 
 func (channel *Channel) GetHeaderOverride() map[string]interface{} {
+	source := ""
+	if channel.HeaderOverride != nil {
+		source = *channel.HeaderOverride
+	}
+	if cached, ok := loadChannelParsed[map[string]interface{}](&channelHeaderOverrideCache, channel.Id, source); ok {
+		return cloneChannelOverrideMap(cached.value)
+	}
 	headerOverride := make(map[string]interface{})
-	if channel.HeaderOverride != nil && *channel.HeaderOverride != "" {
-		err := common.Unmarshal([]byte(*channel.HeaderOverride), &headerOverride)
-		if err != nil {
+	if source != "" {
+		if err := common.UnmarshalJsonStr(source, &headerOverride); err != nil {
 			common.SysLog(fmt.Sprintf("failed to unmarshal header override: channel_id=%d, error=%v", channel.Id, err))
+			headerOverride = make(map[string]interface{})
 		}
 	}
-	return headerOverride
+	storeChannelParsed(&channelHeaderOverrideCache, channel.Id, source, headerOverride)
+	return cloneChannelOverrideMap(headerOverride)
+}
+
+func cloneChannelOverrideMap(m map[string]interface{}) map[string]interface{} {
+	if len(m) == 0 {
+		return make(map[string]interface{})
+	}
+	return maps.Clone(m)
 }
 
 func GetChannelsByIds(ids []int) ([]*Channel, error) {

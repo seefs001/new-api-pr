@@ -103,7 +103,9 @@ func StringData(c *gin.Context, str string) error {
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
-	c.Render(-1, common.CustomEvent{Data: "data: " + str})
+	if err := common.WriteSSEData(c.Writer, str); err != nil {
+		return err
+	}
 	return FlushWriter(c)
 }
 
@@ -130,7 +132,16 @@ func ObjectData(c *gin.Context, object interface{}) error {
 	if err != nil {
 		return fmt.Errorf("error marshalling object: %w", err)
 	}
-	return StringData(c, string(jsonData))
+	if c == nil || c.Writer == nil {
+		return errors.New("context or writer is nil")
+	}
+	if requestContextDone(c) {
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	}
+	if err := common.WriteSSEDataBytes(c.Writer, jsonData); err != nil {
+		return err
+	}
+	return FlushWriter(c)
 }
 
 func Done(c *gin.Context) {
