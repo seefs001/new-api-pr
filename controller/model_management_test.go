@@ -1286,6 +1286,140 @@ func TestVendorManagementDatabaseMatrix(t *testing.T) {
 	}
 }
 
+func TestResetModelMetadataDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			if dialect.env != "" && os.Getenv(dialect.env) == "" {
+				t.Skip("set " + dialect.env)
+			}
+			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+			require.NoError(t, db.AutoMigrate(&model.Token{}, &model.Log{}, &model.QuotaData{}))
+			vendor := model.Vendor{Name: "Saved custom vendor", Icon: "Custom.Icon"}
+			archivedVendor := model.Vendor{Name: "Previously deleted vendor"}
+			require.NoError(t, db.Create(&vendor).Error)
+			require.NoError(t, db.Create(&archivedVendor).Error)
+			one := model.Model{ModelName: "gpt-reset", VendorID: vendor.Id, Description: "Saved metadata", Icon: "Custom.Icon"}
+			rule := model.Model{ModelName: "custom-", VendorID: vendor.Id, NameRule: model.NameRulePrefix}
+			archived := model.Model{ModelName: "previously-deleted", VendorID: archivedVendor.Id}
+			for _, item := range []*model.Model{&one, &rule, &archived} {
+				require.NoError(t, db.Create(item).Error)
+			}
+			require.NoError(t, db.Delete(&archived).Error)
+			require.NoError(t, db.Delete(&archivedVendor).Error)
+			channel := model.Channel{Name: "Retained channel", Type: 1, Key: "fixture-key", Models: one.ModelName, Group: "default", Status: common.ChannelStatusEnabled}
+			require.NoError(t, db.Create(&channel).Error)
+			require.NoError(t, channel.UpdateAbilities(db))
+			token := model.Token{Name: "Retained token", Key: "retained-fixture-token", RemainQuota: 1234}
+			usage := model.Log{ModelName: one.ModelName, Type: model.LogTypeConsume, Quota: 250, PromptTokens: 100}
+			quota := model.QuotaData{ModelName: one.ModelName, TokenUsed: 100, Quota: 250, Count: 1}
+			option := model.Option{Key: "ModelPrice", Value: `{"gpt-reset":0.25}`}
+			for _, record := range []any{&token, &usage, &quota, &option} {
+				require.NoError(t, db.Create(record).Error)
+			}
+			require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(option.Value))
+			priceBefore, err := model.GetModelPricingSnapshot([]string{one.ModelName})
+			require.NoError(t, err)
+			operation := model.VendorOperation{Action: "reset_metadata"}
+			var previewResponse struct {
+				Success bool
+				Data    model.VendorOperationPreview
+			}
+			recorder := modelManagementRequest(t, PreviewVendorOperation, http.MethodPost, "/api/vendors/operations/preview", operation, &previewResponse)
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+			require.True(t, previewResponse.Success)
+			assert.Len(t, previewResponse.Data.Models, 3)
+			assert.Len(t, previewResponse.Data.Sources, 2)
+			var models, vendors int64
+			require.NoError(t, db.Unscoped().Model(&model.Model{}).Count(&models).Error)
+			require.NoError(t, db.Unscoped().Model(&model.Vendor{}).Count(&vendors).Error)
+			assert.EqualValues(t, 3, models, "preview must not delete records")
+			assert.EqualValues(t, 2, vendors)
+			recorder = modelManagementRequest(t, ApplyVendorOperation, http.MethodPost, "/api/vendors/operations", operation, nil)
+			assert.Equal(t, http.StatusConflict, recorder.Code, "a preview version is required")
+			operation.ExpectedVersion = previewResponse.Data.Version
+			require.NoError(t, db.Delete(&rule).Error)
+			recorder = modelManagementRequest(t, ApplyVendorOperation, http.MethodPost, "/api/vendors/operations", operation, nil)
+			assert.Equal(t, http.StatusConflict, recorder.Code, "soft deletion after preview invalidates the version")
+			preview, err := model.PreviewVendorOperation(model.VendorOperation{Action: "reset_metadata"})
+			require.NoError(t, err)
+			operation.ExpectedVersion = preview.Version
+			invalid := operation
+			invalid.VendorIDs = []int{vendor.Id}
+			recorder = modelManagementRequest(t, ApplyVendorOperation, http.MethodPost, "/api/vendors/operations", invalid, nil)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code, "global reset must not silently accept a partial selection")
+			const callback = "test:reset_vendor_failure"
+			require.NoError(t, db.Callback().Delete().Before("gorm:delete").Register(callback, func(tx *gorm.DB) {
+				if tx.Statement.Table == "vendors" {
+					tx.AddError(errors.New("injected vendor delete failure"))
+				}
+			}))
+			t.Cleanup(func() { _ = db.Callback().Delete().Remove(callback) })
+			_, err = model.ApplyVendorOperation(operation)
+			require.Error(t, err)
+			require.NoError(t, db.Unscoped().Model(&model.Model{}).Count(&models).Error)
+			require.NoError(t, db.Unscoped().Model(&model.Vendor{}).Count(&vendors).Error)
+			assert.EqualValues(t, 3, models, "the first delete must roll back if the second fails")
+			assert.EqualValues(t, 2, vendors)
+			require.NoError(t, db.Callback().Delete().Remove(callback))
+			var response struct {
+				Success bool
+				Data    struct {
+					DeletedModels  []int `json:"deleted_models"`
+					DeletedVendors []int `json:"deleted_vendors"`
+				}
+			}
+			recorder = modelManagementRequest(t, ApplyVendorOperation, http.MethodPost, "/api/vendors/operations", operation, &response)
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+			require.True(t, response.Success)
+			assert.ElementsMatch(t, []int{one.Id, rule.Id, archived.Id}, response.Data.DeletedModels)
+			assert.ElementsMatch(t, []int{vendor.Id, archivedVendor.Id}, response.Data.DeletedVendors)
+			for range 2 {
+				model.RefreshPricing()
+				require.NoError(t, db.Unscoped().Model(&model.Model{}).Count(&models).Error)
+				require.NoError(t, db.Unscoped().Model(&model.Vendor{}).Count(&vendors).Error)
+				assert.Zero(t, models)
+				assert.Zero(t, vendors, "pricing must not recreate reset metadata")
+			}
+			for _, record := range []any{&channel, &token, &usage, &quota} {
+				var count int64
+				require.NoError(t, db.Model(record).Count(&count).Error)
+				assert.EqualValues(t, 1, count)
+			}
+			var keptChannel model.Channel
+			var keptToken model.Token
+			var keptUsage model.Log
+			var keptQuota model.QuotaData
+			var keptOption model.Option
+			require.NoError(t, db.First(&keptChannel, channel.Id).Error)
+			require.NoError(t, db.First(&keptToken, token.Id).Error)
+			require.NoError(t, db.First(&keptUsage, usage.Id).Error)
+			require.NoError(t, db.First(&keptQuota, quota.Id).Error)
+			require.NoError(t, db.Where(&model.Option{Key: option.Key}).First(&keptOption).Error)
+			assert.Equal(t, channel, keptChannel)
+			assert.Equal(t, token, keptToken)
+			assert.Equal(t, usage, keptUsage)
+			assert.Equal(t, quota, keptQuota)
+			assert.Equal(t, option, keptOption)
+			priceAfter, err := model.GetModelPricingSnapshot([]string{one.ModelName})
+			require.NoError(t, err)
+			assert.Equal(t, priceBefore, priceAfter)
+			var audit model.AuditLog
+			require.NoError(t, db.Where("action = ?", "vendor.reset_metadata").First(&audit).Error)
+			assert.True(t, audit.Success)
+			assert.Contains(t, audit.Other.Op.Params, "deleted_model_ids")
+			recorder = modelManagementRequest(t, ApplyVendorOperation, http.MethodPost, "/api/vendors/operations", operation, nil)
+			assert.Equal(t, http.StatusConflict, recorder.Code, "replaying the old reset version is rejected")
+			preview, err = model.PreviewVendorOperation(model.VendorOperation{Action: "reset_metadata"})
+			require.NoError(t, err)
+			assert.Empty(t, preview.Models)
+			assert.Empty(t, preview.Sources)
+			operation.ExpectedVersion = preview.Version
+			_, err = model.ApplyVendorOperation(operation)
+			require.NoError(t, err, "resetting an already empty catalog is a no-op")
+		})
+	}
+}
+
 func TestModelDeletionDatabaseMatrix(t *testing.T) {
 	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
 		t.Run(dialect.kind, func(t *testing.T) {

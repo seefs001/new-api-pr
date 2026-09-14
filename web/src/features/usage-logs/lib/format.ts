@@ -539,6 +539,7 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'vendor.create': 'Created a vendor',
   'vendor.update': 'Updated a vendor',
   'vendor.delete': 'Deleted a vendor',
+  'vendor.reset_metadata': 'Reset model management',
   // Model metadata
   'model.create': 'Created a model',
   'model.update': 'Updated a model',

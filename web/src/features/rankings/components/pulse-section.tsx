@@ -25,6 +25,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { resolveModelProvider } from '@/lib/model-provider'
 import { cn } from '@/lib/utils'
 
 import type { RankingMover } from '../types'
@@ -111,7 +112,13 @@ function PulseEmpty(props: { label: string }) {
 function MoverRow(props: { row: RankingMover; intent: 'up' | 'down' }) {
   return (
     <li className='flex items-center gap-3 px-4 py-2'>
-      <span className='shrink-0'>{getLobeIcon(props.row.vendor_icon, 20)}</span>
+      <span className='shrink-0'>
+        {getLobeIcon(
+          props.row.vendor_icon?.trim() ||
+            resolveModelProvider(props.row.model_name)?.icon,
+          20
+        )}
+      </span>
       <div className='min-w-0 flex-1'>
         <ModelLink
           modelName={props.row.model_name}

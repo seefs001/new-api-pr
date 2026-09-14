@@ -53,6 +53,8 @@ export function VendorOperationDialog(props: {
     props.selection.target_vendor_id?.toString() ?? ''
   )
   const action = props.selection.action
+  const resetMetadata = action === 'reset_metadata'
+  const needsTarget = action === 'assign' || action === 'merge'
   const vendorsQuery = useQuery({
     queryKey: vendorsQueryKeys.list(),
     queryFn: async () => {
@@ -62,7 +64,7 @@ export function VendorOperationDialog(props: {
       }
       return response
     },
-    enabled: action !== 'delete',
+    enabled: needsTarget,
   })
   const vendorOptions = (vendorsQuery.data?.data?.items ?? []).map(
     (vendor) => ({
@@ -97,15 +99,19 @@ export function VendorOperationDialog(props: {
       }),
     onSuccess: async (result) => {
       await invalidateVendorData(client)
-      toast.success(
-        t(
-          'Updated {{models}} model assignments and deleted {{vendors}} vendor records.',
-          {
-            models: result.updated_models.length,
-            vendors: result.deleted_vendors.length,
-          }
+      if (resetMetadata) {
+        toast.success(t('Model management reset'))
+      } else {
+        toast.success(
+          t(
+            'Updated {{models}} model assignments and deleted {{vendors}} vendor records.',
+            {
+              models: result.updated_models.length,
+              vendors: result.deleted_vendors.length,
+            }
+          )
         )
-      )
+      }
       props.onSuccess?.()
       props.onClose()
     },
@@ -113,8 +119,17 @@ export function VendorOperationDialog(props: {
   let title = t('Change model vendor')
   if (action === 'merge') title = t('Merge vendors')
   if (action === 'delete') title = t('Delete vendors')
+  if (resetMetadata) title = t('Reset model management')
+  const applyLabel = resetMetadata
+    ? t('Delete all models and vendors')
+    : t('Apply changes')
   const busy = preview.isPending || apply.isPending
+  const noResetData =
+    resetMetadata &&
+    preview.data?.models.length === 0 &&
+    preview.data?.sources.length === 0
   const valid =
+    resetMetadata ||
     action === 'delete' ||
     (target !== '' &&
       (action !== 'merge' || Boolean(request.vendor_ids?.length)))
@@ -125,11 +140,17 @@ export function VendorOperationDialog(props: {
         if (!open && !busy) props.onClose()
       }}
       title={title}
-      description={t(
-        'Review the affected records before applying. Pricing, channels, and model names are preserved.'
-      )}
-      contentClassName='sm:max-w-4xl'
-      contentHeight='min(75vh, 760px)'
+      description={
+        resetMetadata
+          ? t(
+              'Permanently delete all saved model and vendor metadata, including previously deleted records. Channel configurations, pricing settings, tokens, and usage history are preserved.'
+            )
+          : t(
+              'Review the affected records before applying. Pricing, channels, and model names are preserved.'
+            )
+      }
+      contentClassName={resetMetadata ? 'sm:max-w-xl' : 'sm:max-w-4xl'}
+      contentHeight={resetMetadata ? undefined : 'min(75vh, 760px)'}
       footer={
         <>
           <Button variant='outline' disabled={busy} onClick={props.onClose}>
@@ -137,9 +158,7 @@ export function VendorOperationDialog(props: {
           </Button>
           {!preview.data && (
             <Button
-              disabled={
-                !valid || busy || (action !== 'delete' && vendorsQuery.isError)
-              }
+              disabled={!valid || busy || (needsTarget && vendorsQuery.isError)}
               onClick={() => preview.mutate()}
             >
               {t('Preview changes')}
@@ -148,17 +167,17 @@ export function VendorOperationDialog(props: {
           {preview.data && (
             <Button
               variant={action === 'assign' ? 'default' : 'destructive'}
-              disabled={busy || apply.isError}
+              disabled={busy || apply.isError || noResetData}
               onClick={() => apply.mutate()}
             >
-              {busy ? t('Applying...') : t('Apply changes')}
+              {busy ? t('Applying...') : applyLabel}
             </Button>
           )}
         </>
       }
     >
       <div className='space-y-4'>
-        {action !== 'delete' && (
+        {needsTarget && (
           <div className='space-y-2'>
             <Label htmlFor='vendor-operation-target'>
               {action === 'merge' ? t('Keep this vendor') : t('Target vendor')}
@@ -194,7 +213,7 @@ export function VendorOperationDialog(props: {
             )}
           </p>
         )}
-        {action !== 'delete' && vendorsQuery.isError && (
+        {needsTarget && vendorsQuery.isError && (
           <ErrorState
             description={vendorErrorMessage(vendorsQuery.error)}
             onRetry={() => void vendorsQuery.refetch()}
@@ -224,7 +243,20 @@ export function VendorOperationDialog(props: {
             }
           />
         )}
-        {preview.data && (
+        {preview.data && resetMetadata && (
+          <div className='space-y-2 rounded-lg border p-3 text-sm'>
+            <p>
+              {t('Models')}: {preview.data.models.length}
+            </p>
+            <p>
+              {t('Vendors')}: {preview.data.sources.length}
+            </p>
+            {noResetData && (
+              <p>{t('No saved model or vendor metadata to reset.')}</p>
+            )}
+          </div>
+        )}
+        {preview.data && !resetMetadata && (
           <>
             <div className='space-y-2 rounded-lg border p-3 text-sm'>
               <p>

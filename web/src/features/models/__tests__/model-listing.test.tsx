@@ -60,6 +60,7 @@ import {
 import { ModelsDialogs } from '../components/models-dialogs'
 import { ModelsProvider } from '../components/models-provider'
 import { ModelsTable } from '../components/models-table'
+import { Models } from '../index'
 import type { Model } from '../types'
 
 const metadata: Model = {
@@ -123,6 +124,7 @@ async function renderList(
     waitForPricing?: boolean
     initialUrl?: string
     total?: number
+    fullPage?: boolean
   } = {}
 ) {
   useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 100 })
@@ -167,7 +169,7 @@ async function renderList(
   const models = createRoute({
     getParentRoute: () => authenticated,
     path: 'models/$section',
-    component: Page,
+    component: options.fullPage ? Models : Page,
   })
   const router = createRouter({
     routeTree: root.addChildren([authenticated.addChildren([models])]),
@@ -181,7 +183,9 @@ async function renderList(
       <RouterProvider router={router} />
     </QueryClientProvider>
   )
-  if (items.length) {
+  if (options.fullPage) {
+    await screen.findByRole('button', { name: 'Reset model management' })
+  } else if (items.length) {
     await screen.findByRole('button', { name: items[0].model_name })
   } else await screen.findByText('No Models Found')
   if (options.waitForPricing !== false) {
@@ -208,6 +212,33 @@ afterEach(async () => {
     .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
   await i18n.changeLanguage('en')
 })
+
+it.each(['metadata', 'vendors'])(
+  'opens reset from the %s section without deleting data before preview',
+  async (section) => {
+    const post = vi.spyOn(api, 'post')
+    await renderList([metadata], {
+      fullPage: true,
+      initialUrl: `/models/${section}`,
+    })
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole('button', { name: 'Reset model management' })
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Reset model management',
+    })
+    expect(
+      within(dialog).getByRole('button', { name: 'Preview changes' })
+    ).toBeEnabled()
+    expect(post).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(
+      screen.queryByRole('dialog', { name: 'Reset model management' })
+    ).not.toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+  }
+)
 
 it('requests channel models and distinguishes catalog policy from availability using compact labels', async () => {
   const { get } = await renderList()

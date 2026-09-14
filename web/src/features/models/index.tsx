@@ -31,6 +31,7 @@ import { listDeployments } from './api'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
 import { DeploymentsTable } from './components/deployments-table'
 import { CreateDeploymentDrawer } from './components/dialogs/create-deployment-drawer'
+import { VendorOperationDialog } from './components/dialogs/vendor-operation-dialog'
 import { ModelsDialogs } from './components/models-dialogs'
 import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
@@ -71,6 +72,7 @@ function ModelsContent() {
 
   // Deployment create dialog state
   const [createDeploymentOpen, setCreateDeploymentOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
 
   // keep context state in sync (for components that rely on it)
   useEffect(() => {
@@ -125,7 +127,18 @@ function ModelsContent() {
         stackActionsOnMobile={activeSection === 'metadata'}
       >
         <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
-        <SectionPageLayout.Actions>{actions}</SectionPageLayout.Actions>
+        <SectionPageLayout.Actions>
+          {actions}
+          {activeSection !== 'deployments' && (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => setResetOpen(true)}
+            >
+              {t('Reset model management')}
+            </Button>
+          )}
+        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='flex h-full min-h-0 flex-col gap-4'>
             <Tabs value={activeSection} onValueChange={handleSectionChange}>
@@ -143,6 +156,12 @@ function ModelsContent() {
       </SectionPageLayout>
 
       <ModelsDialogs />
+      {resetOpen && (
+        <VendorOperationDialog
+          selection={{ action: 'reset_metadata' }}
+          onClose={() => setResetOpen(false)}
+        />
+      )}
       <CreateDeploymentDrawer
         open={createDeploymentOpen}
         onOpenChange={setCreateDeploymentOpen}

@@ -26,7 +26,7 @@ import { createServerError } from '@/lib/server-error-message'
 import type { Model, Vendor } from './types'
 
 export type VendorOperation = {
-  action: 'assign' | 'merge' | 'delete'
+  action: 'assign' | 'merge' | 'delete' | 'reset_metadata'
   vendor_ids?: number[]
   model_ids?: number[]
   target_vendor_id?: number
@@ -47,6 +47,7 @@ export type VendorOperationPreview = {
 export type VendorOperationResult = {
   updated_models: number[]
   deleted_vendors: number[]
+  deleted_models?: number[]
 }
 
 type VendorErrorPayload = {

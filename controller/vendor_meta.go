@@ -133,6 +133,12 @@ func ApplyVendorOperation(c *gin.Context) {
 		vendorAPIError(c, err)
 		return
 	}
-	recordManageAudit(c, "vendor."+request.Action, map[string]any{"source_vendor_ids": request.VendorIDs, "target_vendor_id": request.TargetVendorID, "updated_model_ids": result.UpdatedModels, "deleted_vendor_ids": result.DeletedVendors})
+	details := map[string]any{"source_vendor_ids": request.VendorIDs, "target_vendor_id": request.TargetVendorID, "updated_model_ids": result.UpdatedModels, "deleted_vendor_ids": result.DeletedVendors}
+	if request.Action == "reset_metadata" {
+		details["deleted_model_ids"] = result.DeletedModels
+		details["models"] = len(result.DeletedModels)
+		details["vendors"] = len(result.DeletedVendors)
+	}
+	recordManageAudit(c, "vendor."+request.Action, details)
 	common.ApiSuccess(c, result)
 }

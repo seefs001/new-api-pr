@@ -79,6 +79,115 @@ function conflict() {
 }
 
 describe('vendor management', () => {
+  it('previews a full reset and requires a fresh version after a conflict before deleting metadata', async () => {
+    const get = vi.spyOn(api, 'get')
+    const resetPreview = {
+      ...preview,
+      action: 'reset_metadata',
+      sources: [vendor, target],
+    }
+    const post = vi
+      .spyOn(api, 'post')
+      .mockResolvedValueOnce({ data: { success: true, data: resetPreview } })
+      .mockRejectedValueOnce(conflict())
+      .mockResolvedValueOnce({
+        data: { success: true, data: { ...resetPreview, version: 'reset-v2' } },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            updated_models: [],
+            deleted_models: [7],
+            deleted_vendors: [3, 4],
+          },
+        },
+      })
+    const close = vi.fn()
+    const client = renderWithClient(
+      <VendorOperationDialog
+        selection={{ action: 'reset_metadata' }}
+        onClose={close}
+      />
+    )
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    expect(
+      screen.getByRole('dialog', { name: 'Reset model management' })
+    ).toBeVisible()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(get).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('button', { name: 'Delete all models and vendors' })
+    ).not.toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Preview changes' }))
+    expect(await screen.findByText('Models: 1')).toBeVisible()
+    expect(screen.getByText('Vendors: 2')).toBeVisible()
+    await user.click(
+      screen.getByRole('button', { name: 'Delete all models and vendors' })
+    )
+    expect(
+      await screen.findByText(
+        'Vendor data changed. Preview again before applying.'
+      )
+    ).toBeVisible()
+    expect(close).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'Delete all models and vendors' })
+    ).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Preview again' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Delete all models and vendors' })
+      ).toBeEnabled()
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Delete all models and vendors' })
+    )
+    await waitFor(() => expect(close).toHaveBeenCalledOnce())
+    expect(post).toHaveBeenLastCalledWith(
+      '/api/vendors/operations',
+      expect.objectContaining({
+        action: 'reset_metadata',
+        expected_version: 'reset-v2',
+      })
+    )
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['models'] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['vendors'] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['pricing'] })
+  })
+
+  it('disables reset when there are no saved models or vendors', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          action: 'reset_metadata',
+          sources: [],
+          target: null,
+          models: [],
+          version: 'empty',
+        },
+      },
+    })
+    renderWithClient(
+      <VendorOperationDialog
+        selection={{ action: 'reset_metadata' }}
+        onClose={vi.fn()}
+      />
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Preview changes' }))
+    expect(
+      await screen.findByText('No saved model or vendor metadata to reset.')
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Delete all models and vendors' })
+    ).toBeDisabled()
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+
   it('edits only vendor metadata using the saved version and protects unsaved changes', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({
       data: { success: true, data: vendor },

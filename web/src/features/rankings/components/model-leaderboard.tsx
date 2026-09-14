@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { resolveModelProvider } from '@/lib/model-provider'
 
 import { formatTokens } from '../lib/format'
 import type { ModelRanking } from '../types'
@@ -83,7 +84,11 @@ function ModelList(props: {
             {row.rank}.
           </span>
           <span className='shrink-0'>
-            {getLobeIcon(row.vendor_icon, compact ? 20 : 22)}
+            {getLobeIcon(
+              row.vendor_icon?.trim() ||
+                resolveModelProvider(row.model_name)?.icon,
+              compact ? 20 : 22
+            )}
           </span>
           <div className='min-w-0 flex-1'>
             <ModelLink

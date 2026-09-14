@@ -75,7 +75,8 @@ func VendorRecordVersion(v *Vendor) string {
 	return fmt.Sprintf("%x", sha256.Sum256(encoded))
 }
 
-// VendorOperation uses explicit selections for both preview and application.
+// VendorOperation uses explicit selections, except reset_metadata which targets
+// all saved model/vendor records and requires a fresh preview before applying.
 type VendorOperation struct {
 	Action          string `json:"action"`
 	VendorIDs       []int  `json:"vendor_ids"`
@@ -104,17 +105,25 @@ type VendorOperationPreview struct {
 type VendorOperationResult struct {
 	UpdatedModels  []int `json:"updated_models"`
 	DeletedVendors []int `json:"deleted_vendors"`
+	DeletedModels  []int `json:"deleted_models,omitempty"`
 }
 
 func buildVendorOperationPreview(db *gorm.DB, operation VendorOperation) (*VendorOperationPreview, error) {
-	if operation.Action != "assign" && operation.Action != "merge" && operation.Action != "delete" {
+	resetMetadata := operation.Action == "reset_metadata"
+	if operation.Action != "assign" && operation.Action != "merge" && operation.Action != "delete" && !resetMetadata {
 		return nil, errors.New("unsupported vendor operation")
+	}
+	if resetMetadata {
+		if len(operation.VendorIDs) != 0 || len(operation.ModelIDs) != 0 || operation.TargetVendorID != 0 {
+			return nil, errors.New("invalid or duplicate selection")
+		}
+		db = db.Unscoped()
 	}
 	ids := append([]int{}, operation.VendorIDs...)
 	if operation.Action == "assign" {
 		ids = append([]int{}, operation.ModelIDs...)
 	}
-	if len(ids) == 0 || len(ids) > 1000 {
+	if !resetMetadata && (len(ids) == 0 || len(ids) > 1000) {
 		return nil, errors.New("select between 1 and 1000 records")
 	}
 	slices.Sort(ids)
@@ -129,10 +138,14 @@ func buildVendorOperationPreview(db *gorm.DB, operation VendorOperation) (*Vendo
 		return nil, err
 	}
 	byID := make(map[int]*Vendor, len(vendors))
+	var deletionStates []gorm.DeletedAt
 	for i := range vendors {
 		byID[vendors[i].Id] = &vendors[i]
+		if resetMetadata {
+			deletionStates = append(deletionStates, vendors[i].DeletedAt)
+		}
 	}
-	if operation.Action != "delete" {
+	if operation.Action != "delete" && !resetMetadata {
 		if operation.TargetVendorID < 0 || operation.Action == "merge" && operation.TargetVendorID == 0 {
 			return nil, errors.New("select a saved target vendor")
 		}
@@ -145,7 +158,9 @@ func buildVendorOperationPreview(db *gorm.DB, operation VendorOperation) (*Vendo
 	}
 	var models []Model
 	query := db.Session(&gorm.Session{}).Model(&Model{}).Order("id")
-	if operation.Action == "assign" {
+	if resetMetadata {
+		preview.Sources = vendors
+	} else if operation.Action == "assign" {
 		query = query.Where("id IN ?", ids)
 	} else {
 		for _, id := range ids {
@@ -171,6 +186,9 @@ func buildVendorOperationPreview(db *gorm.DB, operation VendorOperation) (*Vendo
 	counts := make(map[int]int64)
 	for _, item := range models {
 		modelVersions = append(modelVersions, MetadataRecordVersion(&item, nil, nil))
+		if resetMetadata {
+			deletionStates = append(deletionStates, item.DeletedAt)
+		}
 		row := VendorAssignmentModel{ID: item.Id, ModelName: item.ModelName, NameRule: item.NameRule, VendorID: item.VendorID, UpdatedTime: item.UpdatedTime}
 		if vendor := byID[item.VendorID]; vendor != nil {
 			row.VendorName = vendor.Name
@@ -186,7 +204,11 @@ func buildVendorOperationPreview(db *gorm.DB, operation VendorOperation) (*Vendo
 		return nil, &VendorReferenceError{Counts: counts}
 	}
 	slices.SortFunc(preview.Sources, func(a, b Vendor) int { return a.Id - b.Id })
-	encoded, err := common.Marshal([]any{preview, modelVersions})
+	versionData := []any{preview, modelVersions}
+	if resetMetadata {
+		versionData = append(versionData, deletionStates)
+	}
+	encoded, err := common.Marshal(versionData)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +241,23 @@ func applyVendorOperation(operation VendorOperation) (*VendorOperationResult, er
 		}
 		if operation.ExpectedVersion != "" && operation.ExpectedVersion != preview.Version {
 			return ErrVendorConflict
+		}
+		if operation.Action == "reset_metadata" {
+			for _, item := range preview.Models {
+				result.DeletedModels = append(result.DeletedModels, item.ID)
+			}
+			for _, vendor := range preview.Sources {
+				result.DeletedVendors = append(result.DeletedVendors, vendor.Id)
+			}
+			if len(result.DeletedModels) > 0 {
+				if err := tx.Unscoped().Where("1 = 1").Delete(&Model{}).Error; err != nil {
+					return err
+				}
+			}
+			if len(result.DeletedVendors) > 0 {
+				return tx.Unscoped().Where("1 = 1").Delete(&Vendor{}).Error
+			}
+			return nil
 		}
 		for _, item := range preview.Models {
 			if item.VendorID != operation.TargetVendorID {
