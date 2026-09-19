@@ -26,6 +26,16 @@ const (
 		renderEvents: function() { return {events: [], state: null, done: false}; },
 		renderFinal: function(ctx, task) { return task; }
 	}};`
+	imagesProtocolExport = `export const protocols = {openai_images: {
+		decodeRequest: function(ctx) { return ctx; },
+		renderFinal: function(ctx, task) { return task; }
+	}};
+	export function listArtifacts() { return []; }
+	export function buildContentRequest() { return {}; }`
+	imagesProtocolExportWithoutArtifacts = `export const protocols = {openai_images: {
+		decodeRequest: function(ctx) { return ctx; },
+		renderFinal: function(ctx, task) { return task; }
+	}};`
 	videoProtocolExport = `export const protocols = {openai_video: {
 		decodeRequest: function(ctx) { return ctx; },
 		render: function(ctx, task) { return task; }
@@ -102,6 +112,18 @@ func TestProtocolSupportsLoadErrors(t *testing.T) {
 			err:       `plugin acme protocol "openai_video" does not define modes; supports is not allowed`,
 		},
 		{
+			name:      "openai_images only defines sync",
+			protocols: `[{name: "openai_images", supports: ["stream"]}]`,
+			exports:   imagesProtocolExport,
+			err:       `plugin acme protocol "openai_images" has no mode "stream"`,
+		},
+		{
+			name:      "openai_images requires artifact driver hooks",
+			protocols: `[{name: "openai_images", supports: ["sync"]}]`,
+			exports:   imagesProtocolExportWithoutArtifacts,
+			err:       `plugin acme protocol "openai_images" is missing driver hook "listArtifacts"`,
+		},
+		{
 			name:      "unknown protocol forbids supports",
 			protocols: `[{name: "openai_custom", supports: ["stream"]}]`,
 			err:       `plugin acme protocol "openai_custom" does not define modes; supports is not allowed`,
@@ -168,6 +190,15 @@ func TestProtocolSupportsHappyPaths(t *testing.T) {
 				{Name: "openai_video"},
 			},
 		},
+		{
+			name:      "openai_images sync with renderFinal",
+			models:    `["model"]`,
+			protocols: `[{name: "openai_images", supports: ["sync"]}]`,
+			exports:   imagesProtocolExport,
+			wantProtocols: []ProtocolClaim{
+				{Name: "openai_images", Supports: []string{"sync"}, objectForm: true},
+			},
+		},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -212,6 +243,20 @@ func TestMetaProtocolSupports(t *testing.T) {
 	video, err := compileProtocolPlugin(t, "acme-video", `["model"]`, `["openai_video"]`, videoProtocolExport)
 	require.NoError(t, err)
 	assert.False(t, video.Meta.ProtocolSupports("openai_video", "stream"))
+
+	registry := NewRegistry()
+	images, err := registry.Register(protocolPluginSource("acme-images", `["model"]`, `[{name: "openai_images", supports: ["sync"]}]`, imagesProtocolExport), Options{})
+	require.NoError(t, err)
+	assert.True(t, images.Meta.ProtocolSupports("openai_images", "sync"))
+	assert.False(t, images.Meta.ProtocolSupports("openai_images", "stream"))
+	binding, found := registry.Generation().LookupEndpoint("POST", "/v1/images/generations", "model")
+	require.True(t, found)
+	assert.Equal(t, "openai_images", binding.Protocol)
+	assert.Same(t, images, binding.Plugin)
+	edit, found := registry.Generation().LookupEndpoint("POST", "/v1/images/edits", "model")
+	require.True(t, found)
+	assert.Equal(t, "edit", edit.Operation.Name)
+	assert.Equal(t, []ProtocolBinding(nil), registry.Generation().LookupEndpointCandidates("POST", "/v1/images/edits", "other-model"))
 }
 
 func TestProtocolClaimMarshalEmitsSupportsInTableOrder(t *testing.T) {

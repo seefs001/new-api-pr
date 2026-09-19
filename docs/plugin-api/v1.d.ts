@@ -24,17 +24,19 @@ export type DecodedBody =
   | Readonly<{kind: "none"}>;
 
 export interface NativeDecodeContext {method: string; path: string; params: Readonly<Record<string, string>>; query: Readonly<Record<string, readonly string[]>>; body: DecodedBody}
-export interface ProtocolDecodeContext extends NativeDecodeContext {protocol: "openai_responses" | "openai_video"; operation: string; model: string; stream: boolean}
+export interface ProtocolDecodeContext extends NativeDecodeContext {protocol: ProtocolName; operation: string; model: string; stream: boolean}
 export type SubmitIntent = {kind: "submit"; model: string; action?: string; requestBody?: unknown; originTaskIds?: readonly string[]};
 export type QueryIntent = {kind: "query"; taskIds: readonly string[]};
 export type TaskIntent = SubmitIntent | QueryIntent;
 export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string; type: "submit" | "query" | "dynamic"; action?: string; taskIdParam?: string; decode?: string; render: string; models?: readonly string[]}
-export type ProtocolName = "openai_responses" | "openai_video";
+export type ProtocolName = "openai_responses" | "openai_video" | "openai_images";
 export type ResponsesMode = "stream" | "sync" | "background";
+export type ImagesMode = "sync";
 export type ProtocolClaim =
   | "openai_video"
   | {name: "openai_responses"; supports: readonly ResponsesMode[]; models?: readonly string[]}
-  | {name: "openai_video"; models?: readonly string[]};
+  | {name: "openai_video"; models?: readonly string[]}
+  | {name: "openai_images"; supports: readonly ImagesMode[]; models?: readonly string[]};
 export type LocalizedText = string | ({ en: string } & Record<string, string>);
 export type UsageFieldSchema =
   | {type: "number"; unit: "count"; unitLabel?: LocalizedText; description?: LocalizedText}
@@ -58,6 +60,8 @@ export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskI
 export declare const protocols: {
   openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal?(ctx: unknown, task: TaskView): unknown};
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};
+  /** Host adds `created`; every item needs exactly one of `url` (absolute HTTP(S), normally `ctx.artifacts[key].url`), `b64_json`, or `artifact` (an own image artifact key the host inlines as b64_json). */
+  openai_images?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderFinal(ctx: unknown, task: TaskView): {data: readonly {url?: string; b64_json?: string; artifact?: string; revised_prompt?: string}[]}};
 };
 export declare function buildSubmitRequest(ctx: DriverContext): RequestDescriptor;
 export interface SubmitEvent {event: string; id: string; data: string}

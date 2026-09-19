@@ -2,6 +2,7 @@ package relay
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -559,4 +560,60 @@ func TestPluginResponsesMachineFinalFromEvents(t *testing.T) {
 		_, err = machine.FinalFromEvents(ProtocolEventResult{}, "SUCCESS")
 		require.ErrorContains(t, err, "already started")
 	})
+}
+
+func TestPluginImagesEnvelopeFinalResponse(t *testing.T) {
+	envelope := NewPluginImagesEnvelope(1_710_000_000, DefaultPluginProtocolLimits())
+
+	inlined := make([]string, 0, 1)
+	inline := func(artifactKey string) (string, error) {
+		inlined = append(inlined, artifactKey)
+		if artifactKey == "missing" {
+			return "", errors.New("artifact is not an image artifact of the task")
+		}
+		return "aW5saW5lZC0" + artifactKey, nil
+	}
+	response, err := envelope.FinalResponse(map[string]any{
+		"data": []any{
+			map[string]any{"url": "https://gateway.example/v1/tasks/task_1/artifacts/image-1/content?access=abc", "revised_prompt": "a cat"},
+			map[string]any{"b64_json": "aGVsbG8="},
+			map[string]any{"artifact": "image-2", "revised_prompt": "inlined"},
+		},
+	}, inline)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"created": int64(1_710_000_000),
+		"data": []map[string]any{
+			{"url": "https://gateway.example/v1/tasks/task_1/artifacts/image-1/content?access=abc", "revised_prompt": "a cat"},
+			{"b64_json": "aGVsbG8="},
+			{"b64_json": "aW5saW5lZC0image-2", "revised_prompt": "inlined"},
+		},
+	}, response)
+	assert.Equal(t, []string{"image-2"}, inlined)
+
+	_, err = envelope.FinalResponse(map[string]any{"data": []any{map[string]any{"artifact": "image-1"}}}, nil)
+	require.ErrorContains(t, err, "artifact inlining is unavailable")
+	_, err = envelope.FinalResponse(map[string]any{"data": []any{map[string]any{"artifact": "missing"}}}, inline)
+	require.ErrorContains(t, err, `artifact "missing": artifact is not an image artifact of the task`)
+
+	tests := []struct {
+		name    string
+		payload any
+		err     string
+	}{
+		{name: "not an object", payload: []any{}, err: "must be an object"},
+		{name: "host field", payload: map[string]any{"created": 1, "data": []any{map[string]any{"url": "https://a.example/x"}}}, err: `unsupported field "created"`},
+		{name: "empty data", payload: map[string]any{"data": []any{}}, err: "non-empty array"},
+		{name: "item without payload", payload: map[string]any{"data": []any{map[string]any{"revised_prompt": "x"}}}, err: "must contain url, b64_json or artifact"},
+		{name: "relative url", payload: map[string]any{"data": []any{map[string]any{"url": "/v1/tasks/task_1/artifacts/image-1/content"}}}, err: "absolute HTTP(S) URL"},
+		{name: "unknown item field", payload: map[string]any{"data": []any{map[string]any{"url": "https://a.example/x", "task_id": "t"}}}, err: `unsupported field "task_id"`},
+		{name: "artifact with url", payload: map[string]any{"data": []any{map[string]any{"artifact": "image-1", "url": "https://a.example/x"}}}, err: "cannot combine artifact with url or b64_json"},
+		{name: "artifact key with path", payload: map[string]any{"data": []any{map[string]any{"artifact": "../image-1"}}}, err: "artifact must be an artifact key"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := envelope.FinalResponse(testCase.payload, inline)
+			require.ErrorContains(t, err, testCase.err)
+		})
+	}
 }

@@ -396,11 +396,12 @@ func RelayTaskPluginEndpoint(c *gin.Context, fallback gin.HandlerFunc) {
 		})
 		return
 	}
-	if pinned.Protocol != "openai_responses" {
+	switch pinned.Protocol {
+	case "openai_responses", "openai_images":
+		serveTaskPluginProtocol(c, pinned, defaultPluginProtocolBridgeDeps())
+	default:
 		fallback(c)
-		return
 	}
-	serveTaskPluginProtocol(c, pinned, defaultPluginProtocolBridgeDeps())
 }
 
 func RelayTaskFetch(c *gin.Context) {

@@ -88,6 +88,14 @@ var hostProtocols = []HostProtocolDefinition{
 		{Name: "retrieve", Methods: []string{http.MethodGet}, Path: "/v1/videos/:task_id", BodyKinds: []BodyKind{BodyNone}, RequiredProtocolMembers: []string{"render"}},
 		{Name: "content", Methods: []string{http.MethodGet, http.MethodHead}, Path: "/v1/videos/:task_id/content", BodyKinds: []BodyKind{BodyNone}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
 	}},
+	// OpenAI Images has no retrieval call, so the only mode is a synchronous
+	// create or edit that blocks until the task is terminal. Image bytes are
+	// always served through host artifact URLs, hence the driver hook
+	// requirement. Edits accept the OpenAI multipart form and a JSON body.
+	{Name: "openai_images", Operations: []HostProtocolOperation{
+		{Name: "create", Methods: []string{http.MethodPost}, Path: "/v1/images/generations", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest"}, Modes: []ProtocolMode{{Name: "sync", Hook: "renderFinal"}}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
+		{Name: "edit", Methods: []string{http.MethodPost}, Path: "/v1/images/edits", BodyKinds: []BodyKind{BodyJSON, BodyMultipart}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest"}, Modes: []ProtocolMode{{Name: "sync", Hook: "renderFinal"}}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
+	}},
 }
 
 func HostProtocol(name string) (HostProtocolDefinition, bool) {

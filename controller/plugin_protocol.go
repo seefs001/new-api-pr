@@ -2,10 +2,12 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"hash/fnv"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	taskjsplugin "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -33,6 +36,7 @@ type pluginProtocolBridgeDeps struct {
 	admissions         *pluginProtocolObservationLimiter
 	protocolLimits     relay.PluginProtocolLimits
 	artifactContentURL func(taskID, artifactKey string) (string, error)
+	artifactContent    func(c *gin.Context, plugin *pluginruntime.LoadedPlugin, task *model.Task, artifactKey string) ([]byte, error)
 	submissionTimeout  time.Duration
 	observationTimeout time.Duration
 	loadTimeout        time.Duration
@@ -69,6 +73,7 @@ func defaultPluginProtocolBridgeDeps() pluginProtocolBridgeDeps {
 		admissions:         pluginProtocolObservationAdmissions,
 		protocolLimits:     relay.DefaultPluginProtocolLimits(),
 		artifactContentURL: service.BuildTaskArtifactContentURL,
+		artifactContent:    loadTaskPluginArtifactContent,
 		submissionTimeout:  timeout,
 		observationTimeout: timeout,
 		loadTimeout:        loadTimeout,
@@ -97,6 +102,9 @@ func (d pluginProtocolBridgeDeps) withDefaults() pluginProtocolBridgeDeps {
 	}
 	if d.artifactContentURL == nil {
 		d.artifactContentURL = defaults.artifactContentURL
+	}
+	if d.artifactContent == nil {
+		d.artifactContent = defaults.artifactContent
 	}
 	if d.submissionTimeout <= 0 {
 		d.submissionTimeout = defaults.submissionTimeout
@@ -326,6 +334,26 @@ func serveTaskPluginProtocol(
 	if createdAt == 0 {
 		createdAt = deps.now().Unix()
 	}
+	if pinned.Protocol == "openai_images" {
+		// Images has a single synchronous form: block on the same observation
+		// loop as a non-stream Responses call, but present the Images envelope.
+		logger.LogDebug(c, "task_plugin subsystem=protocol event=observation_enter generation=%d plugin=%q mode=images public_task_id=%q", generation, pluginKey, outcome.Task.TaskID)
+		presenter := imagesSyncPresenter{
+			taskID:   outcome.Task.TaskID,
+			envelope: relay.NewPluginImagesEnvelope(createdAt, deps.protocolLimits),
+			inline: func(task *model.Task, artifactKey string) ([]byte, error) {
+				data, err := deps.artifactContent(c, pinned.Plugin, task, artifactKey)
+				if err != nil {
+					// The client only sees a generic envelope; keep the upstream
+					// reason (SSRF policy, upstream status) in the server log.
+					logger.LogWarn(c, fmt.Sprintf("task protocol image artifact inline failed; plugin=%s task=%s artifact=%s: %v", pluginKey, task.TaskID, artifactKey, err))
+				}
+				return data, err
+			},
+		}
+		waitTaskPluginProtocol(c, pinned, protocolRequest, outcome.Task.TaskID, presenter, deps)
+		return
+	}
 	machine := relay.NewPluginResponsesMachine(
 		outcome.Task.TaskID,
 		outcome.RelayInfo.OriginModelName,
@@ -366,7 +394,7 @@ func serveTaskPluginProtocol(
 		return
 	}
 	logger.LogDebug(c, "task_plugin subsystem=protocol event=observation_enter generation=%d plugin=%q mode=nonstream public_task_id=%q", generation, pluginKey, outcome.Task.TaskID)
-	waitTaskPluginProtocol(c, pinned, protocolRequest, outcome.Task.TaskID, machine, deps)
+	waitTaskPluginProtocol(c, pinned, protocolRequest, outcome.Task.TaskID, responsesSyncPresenter{machine: machine}, deps)
 }
 
 func streamTaskPluginProtocol(
@@ -641,7 +669,7 @@ func waitTaskPluginProtocol(
 	pinned pluginruntime.PinnedEndpoint,
 	protocolRequest pluginruntime.ProtocolRequestContext,
 	taskID string,
-	machine *relay.PluginResponsesMachine,
+	presenter pluginProtocolSyncPresenter,
 	deps pluginProtocolBridgeDeps,
 ) {
 	generation := pinned.Generation.Number
@@ -691,7 +719,7 @@ func waitTaskPluginProtocol(
 		} else if err != nil || !exists || task == nil {
 			if errors.Is(observationContext.Err(), context.DeadlineExceeded) {
 				logger.LogDebug(c, "task_plugin subsystem=protocol event=observation_timeout generation=%d plugin=%q mode=nonstream last_status=%q", generation, pluginKey, taskPluginDebugStatus(lastStatus))
-				writeTaskPluginProtocolTimeoutResponse(c, machine, lastStatus)
+				presenter.writeTimeout(c, lastStatus)
 				return
 			}
 			if err != nil && !errors.Is(err, context.Canceled) {
@@ -699,7 +727,7 @@ func waitTaskPluginProtocol(
 			}
 			if c.Request.Context().Err() == nil {
 				logger.LogDebug(c, "task_plugin subsystem=protocol event=observation_failed generation=%d plugin=%q mode=nonstream stage=load reason=task_unavailable", generation, pluginKey)
-				writeTaskPluginProtocolFailureResponse(c, machine, lastStatus)
+				presenter.writeFailure(c, lastStatus)
 			} else {
 				logger.LogDebug(c, "task_plugin subsystem=protocol event=client_disconnected generation=%d plugin=%q mode=nonstream stage=load", generation, pluginKey)
 			}
@@ -733,7 +761,7 @@ func waitTaskPluginProtocol(
 		}
 		if !loadOverloaded && (task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure) {
 			if task.Status == model.TaskStatusFailure {
-				writeTaskPluginProtocolFailureResponse(c, machine, string(task.Status))
+				presenter.writeFailure(c, string(task.Status))
 				return
 			}
 			response, hookElapsed, callErr := renderTaskPluginProtocolFinalResponse(
@@ -741,13 +769,13 @@ func waitTaskPluginProtocol(
 				pinned,
 				protocolRequest,
 				task,
-				machine,
+				presenter,
 				deps,
 			)
 			if callErr != nil {
 				if errors.Is(observationContext.Err(), context.DeadlineExceeded) {
 					logger.LogDebug(c, "task_plugin subsystem=protocol event=observation_timeout generation=%d plugin=%q mode=nonstream stage=render_final last_status=%q", generation, pluginKey, taskPluginDebugStatus(lastStatus))
-					writeTaskPluginProtocolTimeoutResponse(c, machine, lastStatus)
+					presenter.writeTimeout(c, lastStatus)
 					return
 				}
 				if c.Request.Context().Err() != nil {
@@ -762,7 +790,7 @@ func waitTaskPluginProtocol(
 						taskID,
 					))
 				} else {
-					logger.LogError(c, "task protocol final hook failed")
+					logger.LogError(c, fmt.Sprintf("task protocol final hook failed; plugin=%s task=%s: %v", pluginKey, taskID, callErr))
 					logger.LogDebug(
 						c,
 						"task_plugin subsystem=protocol event=observation_failed generation=%d plugin=%q mode=nonstream stage=render_final reason=hook_failed elapsed_ms=%d",
@@ -770,7 +798,7 @@ func waitTaskPluginProtocol(
 						pluginKey,
 						hookElapsed.Milliseconds(),
 					)
-					writeTaskPluginProtocolFailureResponse(c, machine, lastStatus)
+					presenter.writeFailure(c, lastStatus)
 					return
 				}
 			} else {
@@ -820,7 +848,7 @@ func waitTaskPluginProtocol(
 			}
 			if errors.Is(observationContext.Err(), context.DeadlineExceeded) {
 				logger.LogDebug(c, "task_plugin subsystem=protocol event=observation_timeout generation=%d plugin=%q mode=nonstream last_status=%q", generation, pluginKey, taskPluginDebugStatus(lastStatus))
-				writeTaskPluginProtocolTimeoutResponse(c, machine, lastStatus)
+				presenter.writeTimeout(c, lastStatus)
 			}
 			return
 		case <-tickTimer.C:
@@ -833,7 +861,7 @@ func renderTaskPluginProtocolFinalResponse(
 	pinned pluginruntime.PinnedEndpoint,
 	protocolRequest pluginruntime.ProtocolRequestContext,
 	task *model.Task,
-	machine *relay.PluginResponsesMachine,
+	presenter pluginProtocolSyncPresenter,
 	deps pluginProtocolBridgeDeps,
 ) (map[string]any, time.Duration, error) {
 	view, err := service.BuildTaskPluginView(task)
@@ -866,7 +894,7 @@ func renderTaskPluginProtocolFinalResponse(
 	if err != nil {
 		return nil, hookElapsed, err
 	}
-	response, err := machine.FinalResponse(payload, string(task.Status))
+	response, err := presenter.finalResponse(task, payload)
 	if err != nil {
 		return nil, hookElapsed, err
 	}
@@ -1025,7 +1053,7 @@ func retrieveTaskPluginResponse(c *gin.Context, deps pluginProtocolBridgeDeps) {
 			pinned,
 			protocolRequest,
 			task,
-			machine,
+			responsesSyncPresenter{machine: machine},
 			deps,
 		)
 	} else {
@@ -1273,4 +1301,119 @@ func respondPluginProtocolError(c *gin.Context, status int, code, message string
 			"code":    code,
 		},
 	})
+}
+
+// pluginProtocolSyncPresenter owns the wire envelope of a non-streaming
+// protocol observation so the observation loop stays protocol-agnostic.
+type pluginProtocolSyncPresenter interface {
+	finalResponse(task *model.Task, payload any) (map[string]any, error)
+	writeFailure(c *gin.Context, taskStatus string)
+	writeTimeout(c *gin.Context, lastStatus string)
+}
+
+type responsesSyncPresenter struct {
+	machine *relay.PluginResponsesMachine
+}
+
+func (p responsesSyncPresenter) finalResponse(task *model.Task, payload any) (map[string]any, error) {
+	return p.machine.FinalResponse(payload, string(task.Status))
+}
+
+func (p responsesSyncPresenter) writeFailure(c *gin.Context, taskStatus string) {
+	writeTaskPluginProtocolFailureResponse(c, p.machine, taskStatus)
+}
+
+func (p responsesSyncPresenter) writeTimeout(c *gin.Context, lastStatus string) {
+	writeTaskPluginProtocolTimeoutResponse(c, p.machine, lastStatus)
+}
+
+// imagesSyncPresenter renders OpenAI Images envelopes. Error messages stay
+// generic like the Responses envelopes, but name the task so callers can
+// continue through the generic task API.
+type imagesSyncPresenter struct {
+	taskID   string
+	envelope *relay.PluginImagesEnvelope
+	// inline loads one projected image artifact for b64_json output.
+	inline func(task *model.Task, artifactKey string) ([]byte, error)
+}
+
+const (
+	maxInlineImageArtifactBytes      = int64(32 << 20)
+	maxInlineImageArtifactTotalBytes = int64(64 << 20)
+)
+
+func (p imagesSyncPresenter) finalResponse(task *model.Task, payload any) (map[string]any, error) {
+	if task == nil || task.Status != model.TaskStatusSuccess {
+		return nil, errors.New("images response requires a successful task")
+	}
+	total := int64(0)
+	return p.envelope.FinalResponse(payload, func(artifactKey string) (string, error) {
+		if p.inline == nil {
+			return "", errors.New("artifact inlining is unavailable")
+		}
+		data, err := p.inline(task, artifactKey)
+		if err != nil {
+			return "", err
+		}
+		total += int64(len(data))
+		if total > maxInlineImageArtifactTotalBytes {
+			return "", fmt.Errorf("inlined images exceed %d bytes", maxInlineImageArtifactTotalBytes)
+		}
+		return base64.StdEncoding.EncodeToString(data), nil
+	})
+}
+
+// loadTaskPluginArtifactContent fetches one image artifact of a successful
+// task through the pinned plugin, using the same projection, descriptor and
+// SSRF policy as the artifact content endpoint.
+func loadTaskPluginArtifactContent(c *gin.Context, plugin *pluginruntime.LoadedPlugin, task *model.Task, artifactKey string) ([]byte, error) {
+	if plugin == nil {
+		return nil, errTaskArtifactPluginUnavailable
+	}
+	channelMeta, err := taskArtifactChannelMeta(task)
+	if err != nil {
+		return nil, err
+	}
+	adaptor := taskjsplugin.New(plugin)
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: channelMeta})
+	artifacts, err := adaptor.ListArtifacts(task)
+	if err != nil {
+		return nil, fmt.Errorf("project task artifacts: %w", err)
+	}
+	artifacts, err = validateProjectedTaskArtifacts(artifacts)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.ContainsFunc(artifacts, func(artifact relaychannel.TaskArtifact) bool {
+		return artifact.Key == artifactKey && artifact.Type == "image"
+	}) {
+		return nil, fmt.Errorf("artifact %q is not an image artifact of the task", artifactKey)
+	}
+	descriptor, err := adaptor.BuildContentRequest(task, artifactKey, relaychannel.TaskArtifactClientRequest{Method: http.MethodGet, Headers: map[string]string{}})
+	if err != nil {
+		return nil, fmt.Errorf("build artifact content request: %w", err)
+	}
+	return readTaskMedia(c, task, descriptor, maxInlineImageArtifactBytes)
+}
+
+func (p imagesSyncPresenter) writeFailure(c *gin.Context, taskStatus string) {
+	switch taskStatus {
+	case string(model.TaskStatusFailure):
+		respondPluginProtocolError(c, http.StatusInternalServerError, "task_failed",
+			fmt.Sprintf("Image generation task %s failed. Retrieve the failure reason with GET /v1/tasks/%s.", p.taskID, p.taskID))
+		return
+	case string(model.TaskStatusSuccess):
+		// The task and its billing are settled; only this rendering failed,
+		// typically because the gateway may not fetch the upstream artifact.
+		respondPluginProtocolError(c, http.StatusBadGateway, "image_fetch_failed",
+			fmt.Sprintf("Image generation task %s completed, but the gateway could not fetch or render its images. Check the artifact fetch settings (private addresses and allowed ports for the upstream host) or retrieve them with GET /v1/tasks/%s/artifacts.", p.taskID, p.taskID))
+		return
+	}
+	respondPluginProtocolError(c, http.StatusInternalServerError, "task_protocol_error",
+		fmt.Sprintf("Image generation task %s could not be observed. Retrieve it with GET /v1/tasks/%s.", p.taskID, p.taskID))
+}
+
+func (p imagesSyncPresenter) writeTimeout(c *gin.Context, _ string) {
+	respondPluginProtocolError(c, http.StatusGatewayTimeout, "task_timeout",
+		fmt.Sprintf("Image generation task %s is still running. Retrieve the result with GET /v1/tasks/%s/artifacts.", p.taskID, p.taskID))
 }

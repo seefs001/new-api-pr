@@ -120,12 +120,9 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/edits", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
-		httpRouter.POST("/images/generations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
-		httpRouter.POST("/images/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
+		// POST /images/generations and /images/edits are registered by
+		// SetTaskPluginProtocolRouter (openai_images) and fall back to the
+		// built-in image relay.
 
 		// embedding related routes
 		httpRouter.POST("/embeddings", func(c *gin.Context) {

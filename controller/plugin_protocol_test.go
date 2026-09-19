@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/http"
@@ -1578,4 +1579,205 @@ func pluginProtocolRetrieveDeps(pinned pluginruntime.PinnedEndpoint, task *model
 		return pinned.Plugin, pinned.Generation, true
 	}
 	return deps
+}
+
+func compilePluginImagesProtocolTestEndpoint(t *testing.T, key, source string) pluginruntime.PinnedEndpoint {
+	t.Helper()
+	pinned := compilePluginProtocolTestEndpoint(t, key, source)
+	pinned.Plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_images", Supports: []string{"sync"}}}
+	pinned.Protocol = "openai_images"
+	pinned.Operation = pluginruntime.HostProtocolOperation{Name: "create", Methods: []string{http.MethodPost}, Path: "/v1/images/generations", BodyKinds: []pluginruntime.BodyKind{pluginruntime.BodyJSON}, ModelField: "model"}
+	pinned.Model = "image-model"
+	return pinned
+}
+
+func newPluginImagesProtocolTestContext() (*gin.Context, *httptest.ResponseRecorder) {
+	c, recorder := newPluginProtocolTestContext(false, false)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{}`))
+	c.Set("resolved_task_model", "image-model")
+	body := map[string]any{"model": "image-model", "prompt": "a cat", "n": 1}
+	c.Set(pluginruntime.ContextKeyProtocolRequest, pluginruntime.ProtocolRequestContext{
+		RouteRequestContext: pluginruntime.RouteRequestContext{
+			Path:        "/v1/images/generations",
+			Method:      http.MethodPost,
+			Params:      map[string]string{},
+			Query:       map[string][]string{},
+			Body:        map[string]any{"kind": "json", "value": body},
+			RequestBody: body,
+		},
+		Protocol:  "openai_images",
+		Operation: "create",
+		Model:     "image-model",
+	})
+	return c, recorder
+}
+
+func TestServeTaskPluginProtocolImagesSyncRendersHostEnvelopeFromArtifacts(t *testing.T) {
+	pinned := compilePluginImagesProtocolTestEndpoint(t, "images-final", `
+		export function listArtifacts(task) {
+			return task.status === "SUCCESS" ? [{key: "image-2", type: "image"}, {key: "image-1", type: "image", mimeType: "image/png"}] : [];
+		}
+		export function buildContentRequest() { return {url: "https://upstream.invalid/private", method: "GET"}; }
+		export const protocols = {openai_images: {
+			decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model}; },
+			renderFinal: function(ctx, task) {
+				if (ctx.protocol !== "openai_images" || ctx.stream !== false) throw new Error("host did not pass the images protocol context");
+				return {
+					created: 1,
+					data: [{url: ctx.artifacts["image-1"].url}, {url: ctx.artifacts["image-2"].url, revised_prompt: task.data.prompt}]
+				};
+			}
+		}};
+	`)
+	c, recorder := newPluginImagesProtocolTestContext()
+	deps := pluginProtocolTestDeps()
+	deps.artifactContentURL = func(taskID, artifactKey string) (string, error) {
+		return "https://gateway.example/v1/tasks/" + taskID + "/artifacts/" + artifactKey + "/content?access=signed", nil
+	}
+	deps.submit = func(_ *gin.Context, info *relaycommon.RelayInfo) (*taskSubmissionOutcome, *dto.TaskError) {
+		return pluginProtocolTestOutcome(info, pinned.Plugin.Meta.Key, "task_images"), nil
+	}
+	deps.loadTask = func(context.Context, int, constant.TaskPlatform, string) (*model.Task, bool, error) {
+		task := &model.Task{TaskID: "task_images", Platform: constant.TaskPlatform(pinned.Plugin.Meta.Key), UserId: 71, Status: model.TaskStatusSuccess}
+		task.SetData(map[string]any{"prompt": "a cat"})
+		return task, true, nil
+	}
+
+	serveTaskPluginProtocol(c, pinned, deps)
+
+	// The plugin returned a host-owned "created"; the host must reject that
+	// payload rather than let the plugin control the envelope.
+	assert.Equal(t, http.StatusBadGateway, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"image_fetch_failed"`)
+	assert.Contains(t, recorder.Body.String(), "GET /v1/tasks/task_images/artifacts")
+	assert.NotContains(t, recorder.Body.String(), "upstream.invalid")
+
+	pinned = compilePluginImagesProtocolTestEndpoint(t, "images-final-ok", `
+		export function listArtifacts(task) {
+			return task.status === "SUCCESS" ? [{key: "image-2", type: "image"}, {key: "image-1", type: "image", mimeType: "image/png"}] : [];
+		}
+		export function buildContentRequest() { return {url: "https://upstream.invalid/private", method: "GET"}; }
+		export const protocols = {openai_images: {
+			decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model}; },
+			renderFinal: function(ctx, task) {
+				return {data: [{url: ctx.artifacts["image-1"].url}, {url: ctx.artifacts["image-2"].url, revised_prompt: task.data.prompt}]};
+			}
+		}};
+	`)
+	c, recorder = newPluginImagesProtocolTestContext()
+	serveTaskPluginProtocol(c, pinned, deps)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var response struct {
+		Created int64 `json:"created"`
+		Data    []struct {
+			URL           string `json:"url"`
+			RevisedPrompt string `json:"revised_prompt"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, int64(1_710_000_000), response.Created)
+	require.Len(t, response.Data, 2)
+	assert.Equal(t, "https://gateway.example/v1/tasks/task_images/artifacts/image-1/content?access=signed", response.Data[0].URL)
+	assert.Equal(t, "https://gateway.example/v1/tasks/task_images/artifacts/image-2/content?access=signed", response.Data[1].URL)
+	assert.Equal(t, "a cat", response.Data[1].RevisedPrompt)
+	assert.NotContains(t, recorder.Body.String(), "upstream.invalid")
+}
+
+func TestServeTaskPluginProtocolImagesSyncInlinesArtifactsAsBase64(t *testing.T) {
+	pinned := compilePluginImagesProtocolTestEndpoint(t, "images-inline", `
+		export function listArtifacts(task) {
+			return task.status === "SUCCESS" ? [{key: "image-1", type: "image", mimeType: "image/png"}, {key: "image-2", type: "image"}] : [];
+		}
+		export function buildContentRequest() { return {url: "https://upstream.invalid/private", method: "GET"}; }
+		export const protocols = {openai_images: {
+			decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model}; },
+			renderFinal: function(ctx) {
+				return {data: [{artifact: "image-1"}, {artifact: "image-2", revised_prompt: "kept"}]};
+			}
+		}};
+	`)
+	c, recorder := newPluginImagesProtocolTestContext()
+	deps := pluginProtocolTestDeps()
+	deps.artifactContentURL = func(taskID, artifactKey string) (string, error) {
+		return "https://gateway.example/" + artifactKey, nil
+	}
+	loaded := make([]string, 0, 2)
+	deps.artifactContent = func(_ *gin.Context, plugin *pluginruntime.LoadedPlugin, task *model.Task, artifactKey string) ([]byte, error) {
+		require.Same(t, pinned.Plugin, plugin)
+		require.Equal(t, "task_inline", task.TaskID)
+		loaded = append(loaded, artifactKey)
+		return []byte("png-bytes-" + artifactKey), nil
+	}
+	deps.submit = func(_ *gin.Context, info *relaycommon.RelayInfo) (*taskSubmissionOutcome, *dto.TaskError) {
+		return pluginProtocolTestOutcome(info, pinned.Plugin.Meta.Key, "task_inline"), nil
+	}
+	deps.loadTask = func(context.Context, int, constant.TaskPlatform, string) (*model.Task, bool, error) {
+		return &model.Task{TaskID: "task_inline", Platform: constant.TaskPlatform(pinned.Plugin.Meta.Key), UserId: 71, Status: model.TaskStatusSuccess}, true, nil
+	}
+
+	serveTaskPluginProtocol(c, pinned, deps)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var response struct {
+		Created int64 `json:"created"`
+		Data    []struct {
+			URL           string `json:"url"`
+			B64JSON       string `json:"b64_json"`
+			RevisedPrompt string `json:"revised_prompt"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Len(t, response.Data, 2)
+	assert.Empty(t, response.Data[0].URL)
+	assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("png-bytes-image-1")), response.Data[0].B64JSON)
+	assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("png-bytes-image-2")), response.Data[1].B64JSON)
+	assert.Equal(t, "kept", response.Data[1].RevisedPrompt)
+	assert.Equal(t, []string{"image-1", "image-2"}, loaded)
+	assert.NotContains(t, recorder.Body.String(), "upstream.invalid")
+	assert.NotContains(t, recorder.Body.String(), "gateway.example")
+
+	// A fetch failure fails only this response and never leaks the upstream detail.
+	deps.artifactContent = func(*gin.Context, *pluginruntime.LoadedPlugin, *model.Task, string) ([]byte, error) {
+		return nil, errors.New("upstream https://upstream.invalid/private returned 410")
+	}
+	c, recorder = newPluginImagesProtocolTestContext()
+	serveTaskPluginProtocol(c, pinned, deps)
+	assert.Equal(t, http.StatusBadGateway, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"image_fetch_failed"`)
+	assert.Contains(t, recorder.Body.String(), "GET /v1/tasks/task_inline/artifacts")
+	assert.NotContains(t, recorder.Body.String(), "upstream.invalid")
+}
+
+func TestServeTaskPluginProtocolImagesSyncTaskFailureUsesGenericErrorEnvelope(t *testing.T) {
+	pinned := compilePluginImagesProtocolTestEndpoint(t, "images-failed", `
+		export function listArtifacts() { return []; }
+		export function buildContentRequest() { return {}; }
+		export const protocols = {openai_images: {
+			decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model}; },
+			renderFinal: function() { throw new Error("renderFinal must not run for failed tasks"); }
+		}};
+	`)
+	c, recorder := newPluginImagesProtocolTestContext()
+	deps := pluginProtocolTestDeps()
+	deps.submit = func(_ *gin.Context, info *relaycommon.RelayInfo) (*taskSubmissionOutcome, *dto.TaskError) {
+		return pluginProtocolTestOutcome(info, pinned.Plugin.Meta.Key, "task_images_failed"), nil
+	}
+	deps.loadTask = func(context.Context, int, constant.TaskPlatform, string) (*model.Task, bool, error) {
+		return &model.Task{
+			TaskID:     "task_images_failed",
+			Platform:   constant.TaskPlatform(pinned.Plugin.Meta.Key),
+			UserId:     71,
+			Status:     model.TaskStatusFailure,
+			FailReason: "KSampler: CUDA out of memory at https://secret.invalid/",
+		}, true, nil
+	}
+
+	serveTaskPluginProtocol(c, pinned, deps)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"task_failed"`)
+	assert.Contains(t, recorder.Body.String(), "GET /v1/tasks/task_images_failed")
+	assert.NotContains(t, recorder.Body.String(), "secret")
+	assert.NotContains(t, recorder.Body.String(), "CUDA")
 }
