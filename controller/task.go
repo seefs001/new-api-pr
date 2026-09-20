@@ -178,13 +178,27 @@ func initTaskArtifactAdaptor(task *model.Task) (relaychannel.TaskAdaptor, error)
 	if task == nil || !taskHasPluginExecution(task) {
 		return nil, errTaskArtifactPluginUnavailable
 	}
-	channelModel, err := model.CacheGetChannel(task.ChannelId)
+	channelMeta, err := taskArtifactChannelMeta(task)
 	if err != nil {
-		return nil, fmt.Errorf("%w: channel unavailable", errTaskArtifactPluginUnavailable)
+		return nil, err
 	}
 	adaptor := relay.GetTaskAdaptor(task.Platform)
 	if adaptor == nil {
 		return nil, errTaskArtifactPluginUnavailable
+	}
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: channelMeta})
+	return adaptor, nil
+}
+
+// taskArtifactChannelMeta resolves the channel credentials a task's artifact
+// content requests are built with.
+func taskArtifactChannelMeta(task *model.Task) (*relaycommon.ChannelMeta, error) {
+	if task == nil {
+		return nil, errTaskArtifactPluginUnavailable
+	}
+	channelModel, err := model.CacheGetChannel(task.ChannelId)
+	if err != nil {
+		return nil, fmt.Errorf("%w: channel unavailable", errTaskArtifactPluginUnavailable)
 	}
 	pluginKey := task.PrivateData.Key
 	if pluginKey == "" {
@@ -194,15 +208,12 @@ func initTaskArtifactAdaptor(task *model.Task) (relaychannel.TaskAdaptor, error)
 	if baseURL == "" {
 		baseURL = constant.GetChannelBaseURL(channelModel.Type)
 	}
-	adaptor.Init(&relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType:    channelModel.Type,
-			ChannelBaseUrl: baseURL,
-			ApiKey:         pluginKey,
-			ChannelSetting: channelModel.GetSetting(),
-		},
-	})
-	return adaptor, nil
+	return &relaycommon.ChannelMeta{
+		ChannelType:    channelModel.Type,
+		ChannelBaseUrl: baseURL,
+		ApiKey:         pluginKey,
+		ChannelSetting: channelModel.GetSetting(),
+	}, nil
 }
 
 func taskHasPluginExecution(task *model.Task) bool {
